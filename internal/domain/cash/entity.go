@@ -57,13 +57,15 @@ type VoucherLine struct {
 }
 
 // Fund = a cash balance per currency (quỹ). BR6: one fund per currency.
+// ClosedDays holds yyyy-mm-dd dates on which posting is blocked (BR8).
 type Fund struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Currency    string `json:"currency"`
-	Account     string `json:"account"`
-	Description string `json:"description,omitempty"`
-	IsActive    bool   `json:"is_active"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Currency    string   `json:"currency"`
+	Account     string   `json:"account"`
+	Description string   `json:"description,omitempty"`
+	IsActive    bool     `json:"is_active"`
+	ClosedDays  []string `json:"closed_days,omitempty"`
 }
 
 // CashBookEntry = row of Sổ quỹ tiền mặt (S07-DN).

@@ -3,6 +3,7 @@ package cash
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"strings"
@@ -18,6 +19,30 @@ type AuditRecorder interface {
 	Record(ctx context.Context, l *domainaudit.AuditLog) error
 }
 
+// LedgerEntry is the posting the cash service hands to the general-ledger
+// seam (T2.5). For a receive voucher cash is debited; for a pay voucher it is
+// credited, always against the fund's own account (e.g. TK111).
+type LedgerEntry struct {
+	Date      string
+	Account   string
+	Debit     int64
+	Credit    int64
+	RefNo     string
+	FundID    string
+	VoucherID string
+}
+
+// LedgerWriter is the seam for writing entries into the general ledger. The
+// ledger module's writer will satisfy it later; a no-op keeps the skeleton
+// runnable in the meantime.
+type LedgerWriter interface {
+	Post(ctx context.Context, e LedgerEntry) error
+}
+
+type noopLedger struct{}
+
+func (noopLedger) Post(context.Context, LedgerEntry) error { return nil }
+
 type Service interface {
 	CreateFund(ctx context.Context, f *cash.Fund) error
 	ListFunds(ctx context.Context) ([]*cash.Fund, error)
@@ -25,18 +50,32 @@ type Service interface {
 	CreateVoucher(ctx context.Context, actor string, v *cash.Voucher) error
 	UpdateVoucher(ctx context.Context, actor string, v *cash.Voucher) error
 	ApproveVoucher(ctx context.Context, actor, id string) (*cash.Voucher, error)
+	PostVoucher(ctx context.Context, actor, id string) (*cash.Voucher, error)
 	GetVoucher(ctx context.Context, id string) (*cash.Voucher, error)
 	ListVouchers(ctx context.Context, f cash.VoucherFilter) ([]*cash.Voucher, error)
+
+	GetCashBook(ctx context.Context, fundID, from, to string) ([]*cash.CashBookEntry, error)
 }
 
 type service struct {
-	repo  cash.Repository
-	audit AuditRecorder
-	now   func() time.Time
+	repo   cash.Repository
+	audit  AuditRecorder
+	ledger LedgerWriter
+	now    func() time.Time
 }
 
-func NewService(repo cash.Repository, audit AuditRecorder) Service {
-	return &service{repo: repo, audit: audit, now: time.Now}
+type Option func(*service)
+
+func WithLedger(l LedgerWriter) Option {
+	return func(s *service) { s.ledger = l }
+}
+
+func NewService(repo cash.Repository, audit AuditRecorder, opts ...Option) Service {
+	s := &service{repo: repo, audit: audit, ledger: noopLedger{}, now: time.Now}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 func newID() (string, error) {
@@ -182,6 +221,101 @@ func (s *service) ApproveVoucher(ctx context.Context, actor, id string) (*cash.V
 		return nil, err
 	}
 	return v, nil
+}
+
+func (s *service) PostVoucher(ctx context.Context, actor, id string) (*cash.Voucher, error) {
+	v, err := s.repo.GetVoucher(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if v.State != cash.VoucherApproved {
+		return nil, cash.ErrWrongState
+	}
+
+	fund, err := s.loadActiveFund(ctx, v.FundID)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range fund.ClosedDays {
+		if d == v.RefDate {
+			return nil, cash.ErrPeriodClosed
+		}
+	}
+
+	entries, err := s.repo.ListCashBook(ctx, v.FundID, "", v.RefDate)
+	if err != nil {
+		return nil, err
+	}
+	var balance int64
+	for _, e := range entries {
+		balance += e.Receive - e.Pay
+	}
+	switch v.Type {
+	case cash.VoucherReceive:
+		balance += v.AmountMinor
+	case cash.VoucherPay:
+		if balance < v.AmountMinor {
+			return nil, cash.ErrNegativeBalance
+		}
+		balance -= v.AmountMinor
+	}
+
+	entry := &cash.CashBookEntry{
+		ID:          cashBookEntryID(v.FundID, v.ID),
+		FundID:      v.FundID,
+		EntryDate:   v.RefDate,
+		VoucherDate: v.RefDate,
+		RefNo:       v.RefNo,
+		Type:        v.Type,
+		Description: v.Description,
+		Balance:     balance,
+		Reconciled:  false,
+	}
+	if v.Type == cash.VoucherReceive {
+		entry.Receive = v.AmountMinor
+	} else {
+		entry.Pay = v.AmountMinor
+	}
+	if err := s.repo.AppendCashBookEntry(ctx, entry); err != nil {
+		return nil, err
+	}
+
+	v.State = cash.VoucherPosted
+	v.PostedBy = actor
+	v.PostedAt = s.now().UTC().Format(time.RFC3339)
+	if err := s.repo.UpdateVoucher(ctx, v); err != nil {
+		return nil, err
+	}
+
+	le := LedgerEntry{
+		Date:      v.RefDate,
+		Account:   fund.Account,
+		RefNo:     v.RefNo,
+		FundID:    v.FundID,
+		VoucherID: v.ID,
+	}
+	if v.Type == cash.VoucherReceive {
+		le.Debit = v.AmountMinor
+	} else {
+		le.Credit = v.AmountMinor
+	}
+	if err := s.ledger.Post(ctx, le); err != nil {
+		return nil, err
+	}
+
+	if err := s.auditAction(ctx, actor, "voucher.post", v.ID); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func (s *service) GetCashBook(ctx context.Context, fundID, from, to string) ([]*cash.CashBookEntry, error) {
+	return s.repo.ListCashBook(ctx, fundID, from, to)
+}
+
+func cashBookEntryID(fundID, voucherID string) string {
+	h := sha256.Sum256([]byte("cash_book\x00" + fundID + "\x00" + voucherID))
+	return hex.EncodeToString(h[:])
 }
 
 func (s *service) GetVoucher(ctx context.Context, id string) (*cash.Voucher, error) {

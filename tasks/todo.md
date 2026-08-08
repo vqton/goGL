@@ -14,15 +14,15 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 - [x] T1.1 Domain: Fund, Voucher, VoucherLine, enums. Accept: compiles, types per `02-spec §2`.
 - [x] T1.2 Repository: fund+voucher CRUD, NextRefNo seq. Accept: sequence continuous per fund/period/type. Verify: repo test with parallel inserts.
 - [x] T1.3 Service: CreateFund/ListFunds/CreateVoucher/UpdateVoucher/ApproveVoucher. Accept: lines balance (BR5); refno assigned; approve≠preparer (R6). Verify: unit tests.
-- [ ] T1.4 HTTP handlers + wiring in main.go. Accept: create/get/list/approve reachable. Verify: `go run ./cmd/server` smoke + httptest.
+- [x] T1.4 HTTP handlers + wiring in main.go. Accept: create/get/list/approve reachable. Verify: `go run ./cmd/server` smoke + httptest.
 - [ ] T1.5 Lifecycle tests. Verify: `go test ./internal/application/cash/... ./internal/interfaces/http/cash/...`.
 
 ## Phase 2 — Cashier posting + cash book
-- [ ] T2.1 Repo: AppendCashBookEntry/ListCashBook/balance lookup. Accept: running balance correct. Verify: golden test.
-- [ ] T2.2 Service: PostVoucher/GetCashBook. Accept: BR2 (no negative), BR8 (close guard), BR10 (idempotent). Verify: unit tests.
+- [x] T2.1 Repo: AppendCashBookEntry/ListCashBook/balance lookup. Accept: running balance correct. Verify: golden test.
+- [x] T2.2 Service: PostVoucher/GetCashBook. Accept: BR2 (no negative), BR8 (close guard), BR10 (idempotent). Verify: unit tests.
 - [ ] T2.3 Service: CloseDay/CreateCashCount. Accept: diff → open CashCount + notify chief. Verify: tests.
 - [ ] T2.4 HTTP: post/close-day/counts + S07-DN view. Accept: cashier can Ghi sổ. Verify: httptest.
-- [ ] T2.5 Ledger seam interface + mock impl. Accept: posting writes TK111 entry via seam. Verify: mock assertion.
+- [x] T2.5 Ledger seam interface + mock impl. Accept: posting writes TK111 entry via seam. Verify: mock assertion.
 - [ ] T2.6 Posting-rule tests (negative, double-post, close). Verify: coverage ≥ 80% service.
 
 ## Phase 3 — Reconciliation, void, correction
