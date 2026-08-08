@@ -24,7 +24,7 @@ type Service interface {
 
 	CreateVoucher(ctx context.Context, actor string, v *cash.Voucher) error
 	UpdateVoucher(ctx context.Context, actor string, v *cash.Voucher) error
-	ApproveVoucher(ctx context.Context, actor, id string) error
+	ApproveVoucher(ctx context.Context, actor, id string) (*cash.Voucher, error)
 	GetVoucher(ctx context.Context, id string) (*cash.Voucher, error)
 	ListVouchers(ctx context.Context, f cash.VoucherFilter) ([]*cash.Voucher, error)
 }
@@ -160,25 +160,28 @@ func (s *service) UpdateVoucher(ctx context.Context, actor string, v *cash.Vouch
 	return s.auditAction(ctx, actor, "voucher.update", v.ID)
 }
 
-func (s *service) ApproveVoucher(ctx context.Context, actor, id string) error {
+func (s *service) ApproveVoucher(ctx context.Context, actor, id string) (*cash.Voucher, error) {
 	v, err := s.repo.GetVoucher(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if v.State != cash.VoucherDraft {
-		return cash.ErrWrongState
+		return nil, cash.ErrWrongState
 	}
 	if actor == v.CreatedBy {
-		return cash.ErrSelfApproval
+		return nil, cash.ErrSelfApproval
 	}
 	v.State = cash.VoucherApproved
 	v.ApprovedBy = actor
 	v.ApprovedAt = s.now().UTC().Format(time.RFC3339)
 
 	if err := s.repo.UpdateVoucher(ctx, v); err != nil {
-		return err
+		return nil, err
 	}
-	return s.auditAction(ctx, actor, "voucher.approve", id)
+	if err := s.auditAction(ctx, actor, "voucher.approve", id); err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
 func (s *service) GetVoucher(ctx context.Context, id string) (*cash.Voucher, error) {

@@ -254,7 +254,7 @@ func TestService_UpdateVoucher_NotDraft(t *testing.T) {
 	if err := svc.CreateVoucher(ctx, "ketoan", v); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := svc.ApproveVoucher(ctx, "giamdoc", v.ID); err != nil {
+	if _, err := svc.ApproveVoucher(ctx, "giamdoc", v.ID); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 	if err := svc.UpdateVoucher(ctx, "ketoan", v); err != domaincash.ErrWrongState {
@@ -273,7 +273,7 @@ func TestService_ApproveVoucher(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	if err := svc.ApproveVoucher(ctx, "giamdoc", v.ID); err != nil {
+	if _, err := svc.ApproveVoucher(ctx, "giamdoc", v.ID); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 	got, err := svc.GetVoucher(ctx, v.ID)
@@ -298,7 +298,7 @@ func TestService_ApproveVoucher_SelfApproval(t *testing.T) {
 	if err := svc.CreateVoucher(ctx, "ketoan", v); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := svc.ApproveVoucher(ctx, "ketoan", v.ID); err != domaincash.ErrSelfApproval {
+	if _, err := svc.ApproveVoucher(ctx, "ketoan", v.ID); err != domaincash.ErrSelfApproval {
 		t.Fatalf("expected ErrSelfApproval, got %v", err)
 	}
 }
@@ -313,10 +313,10 @@ func TestService_ApproveVoucher_NotDraft(t *testing.T) {
 	if err := svc.CreateVoucher(ctx, "ketoan", v); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := svc.ApproveVoucher(ctx, "giamdoc", v.ID); err != nil {
+	if _, err := svc.ApproveVoucher(ctx, "giamdoc", v.ID); err != nil {
 		t.Fatalf("seed approved state: %v", err)
 	}
-	if err := svc.ApproveVoucher(ctx, "kttruong", v.ID); err != domaincash.ErrWrongState {
+	if _, err := svc.ApproveVoucher(ctx, "kttruong", v.ID); err != domaincash.ErrWrongState {
 		t.Fatalf("expected ErrWrongState, got %v", err)
 	}
 }

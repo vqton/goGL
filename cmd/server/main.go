@@ -118,7 +118,7 @@ func main() {
 		))
 	}
 
-	httpcash.NewHandler(cash.NewService(perscash.NewSqliteRepository(sqlDB), audit.NewService(persaudit.NewSqliteRepository(sqlDB)))).Register(v1)
+	httpcash.NewHandler(cash.NewService(perscash.NewSqliteRepository(sqlDB), audit.NewService(persaudit.NewSqliteRepository(sqlDB))), cfg.Authorization.IdentityHeader).Register(v1)
 	httpbank.NewHandler(bank.NewService(persbank.NewSqliteRepository(sqlDB))).Register(v1)
 	httppurchase.NewHandler(purchase.NewService(perspurchase.NewSqliteRepository(sqlDB))).Register(v1)
 	httpsales.NewHandler(sales.NewService(perssales.NewSqliteRepository(sqlDB))).Register(v1)
