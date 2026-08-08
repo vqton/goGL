@@ -46,6 +46,9 @@ type Voucher struct {
 	ReceiverName     string        `json:"receiver_name"`
 	ApprovedAt       string        `json:"approved_at,omitempty"`
 	PostedAt         string        `json:"posted_at,omitempty"`
+	VoidedBy         string        `json:"voided_by,omitempty"`
+	VoidReason       string        `json:"void_reason,omitempty"`
+	VoidedAt         string        `json:"voided_at,omitempty"`
 }
 
 type VoucherLine struct {
@@ -57,15 +60,17 @@ type VoucherLine struct {
 }
 
 // Fund = a cash balance per currency (quỹ). BR6: one fund per currency.
-// ClosedDays holds yyyy-mm-dd dates on which posting is blocked (BR8).
+// ClosedDays holds yyyy-mm-dd dates on which posting is blocked (BR8);
+// ClosedPeriods holds closed yyyy-mm accounting periods (BR9).
 type Fund struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Currency    string   `json:"currency"`
-	Account     string   `json:"account"`
-	Description string   `json:"description,omitempty"`
-	IsActive    bool     `json:"is_active"`
-	ClosedDays  []string `json:"closed_days,omitempty"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Currency      string   `json:"currency"`
+	Account       string   `json:"account"`
+	Description   string   `json:"description,omitempty"`
+	IsActive      bool     `json:"is_active"`
+	ClosedDays    []string `json:"closed_days,omitempty"`
+	ClosedPeriods []string `json:"closed_periods,omitempty"`
 }
 
 // CashBookEntry = row of Sổ quỹ tiền mặt (S07-DN).
@@ -96,6 +101,19 @@ type CashCount struct {
 	State         string   `json:"state"`
 }
 
+// Reconciliation = biên bản đối chiếu quỹ cuối tháng (UC-5).
+type Reconciliation struct {
+	ID                string   `json:"id"`
+	FundID            string   `json:"fund_id"`
+	Period            string   `json:"period"`
+	CashierBalance    int64    `json:"cashier_balance"`
+	AccountantBalance int64    `json:"accountant_balance"`
+	Difference        int64    `json:"difference"`
+	State             string   `json:"state"`
+	SignedBy          []string `json:"signed_by,omitempty"`
+	CreatedAt         string   `json:"created_at"`
+}
+
 type VoucherFilter struct {
 	FundID string
 	State  VoucherState
@@ -120,4 +138,8 @@ type Repository interface {
 
 	CreateCashCount(ctx context.Context, c *CashCount) error
 	ListCashCounts(ctx context.Context, fundID string) ([]*CashCount, error)
+
+	CreateReconciliation(ctx context.Context, r *Reconciliation) error
+	GetReconciliation(ctx context.Context, id string) (*Reconciliation, error)
+	ListReconciliations(ctx context.Context, fundID string) ([]*Reconciliation, error)
 }

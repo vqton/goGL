@@ -45,7 +45,7 @@ func TestMigrate_CreatesCashTables(t *testing.T) {
 	}
 
 	for _, name := range []string{
-		"cash_funds", "cash_vouchers", "cash_book", "cash_counts", "cash_sequences",
+		"cash_funds", "cash_vouchers", "cash_book", "cash_counts", "cash_reconciliations", "cash_sequences",
 	} {
 		if !tableExists(t, d, name) {
 			t.Fatalf("expected table %q to exist after migrate", name)

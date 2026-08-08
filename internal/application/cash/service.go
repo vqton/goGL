@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -70,6 +71,10 @@ type Service interface {
 
 	CloseDay(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error)
 	ListCashCounts(ctx context.Context, fundID string) ([]*cash.CashCount, error)
+
+	VoidVoucher(ctx context.Context, actor, id, reason string) (*cash.Voucher, error)
+	ReconcileMonth(ctx context.Context, actor, fundID, period string, accountantBalance int64) (*cash.Reconciliation, error)
+	ListReconciliations(ctx context.Context, fundID string) ([]*cash.Reconciliation, error)
 }
 
 type service struct {
@@ -261,6 +266,11 @@ func (s *service) PostVoucher(ctx context.Context, actor, id string) (*cash.Vouc
 			return nil, cash.ErrPeriodClosed
 		}
 	}
+	for _, p := range fund.ClosedPeriods {
+		if p == v.RefDate[:7] {
+			return nil, cash.ErrPeriodClosed
+		}
+	}
 
 	entries, err := s.repo.ListCashBook(ctx, v.FundID, "", v.RefDate)
 	if err != nil {
@@ -415,6 +425,261 @@ func (s *service) CloseDay(ctx context.Context, actor, fundID, date string, coun
 
 func (s *service) ListCashCounts(ctx context.Context, fundID string) ([]*cash.CashCount, error) {
 	return s.repo.ListCashCounts(ctx, fundID)
+}
+
+func cashReconID(fundID, period string) string {
+	h := sha256.Sum256([]byte("cash_recon\x00" + fundID + "\x00" + period))
+	return hex.EncodeToString(h[:])
+}
+
+func (s *service) ReconcileMonth(ctx context.Context, actor, fundID, period string, accountantBalance int64) (*cash.Reconciliation, error) {
+	fund, err := s.loadActiveFund(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+
+	counts, err := s.repo.ListCashCounts(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range counts {
+		if c.State == "open" {
+			return nil, cash.ErrOpenCountPending
+		}
+	}
+
+	entries, err := s.repo.ListCashBook(ctx, fundID, period+"-01", period+"-31")
+	if err != nil {
+		return nil, err
+	}
+	var cashierBalance int64
+	for _, e := range entries {
+		cashierBalance += e.Receive - e.Pay
+	}
+
+	rec := &cash.Reconciliation{
+		ID:                cashReconID(fundID, period),
+		FundID:            fundID,
+		Period:            period,
+		CashierBalance:    cashierBalance,
+		AccountantBalance: accountantBalance,
+		Difference:        cashierBalance - accountantBalance,
+		CreatedAt:         s.now().UTC().Format(time.RFC3339),
+	}
+
+	if rec.Difference != 0 {
+		rec.State = "diff"
+		if err := s.repo.CreateReconciliation(ctx, rec); err != nil {
+			return nil, err
+		}
+		if err := s.auditAction(ctx, actor, "cash.reconcile.diff", rec.ID); err != nil {
+			return nil, err
+		}
+		return rec, nil
+	}
+
+	rec.State = "resolved"
+	rec.SignedBy = []string{actor}
+
+	fund.ClosedPeriods = append(fund.ClosedPeriods, period)
+	if err := s.repo.CreateFund(ctx, fund); err != nil {
+		return nil, err
+	}
+
+	vouchers, err := s.repo.ListVouchers(ctx, cash.VoucherFilter{FundID: fundID, From: period + "-01", To: period + "-31"})
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range vouchers {
+		if v.State != cash.VoucherPosted {
+			continue
+		}
+		v.State = cash.VoucherReconciled
+		if err := s.repo.UpdateVoucher(ctx, v); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := s.repo.CreateReconciliation(ctx, rec); err != nil {
+		return nil, err
+	}
+	if err := s.auditAction(ctx, actor, "cash.reconcile", rec.ID); err != nil {
+		return nil, err
+	}
+	return rec, nil
+}
+
+func (s *service) ListReconciliations(ctx context.Context, fundID string) ([]*cash.Reconciliation, error) {
+	return s.repo.ListReconciliations(ctx, fundID)
+}
+
+func oppositeType(t cash.VoucherType) cash.VoucherType {
+	if t == cash.VoucherReceive {
+		return cash.VoucherPay
+	}
+	return cash.VoucherReceive
+}
+
+// buildReversal constructs the Điều 30 offsetting voucher: opposite type,
+// identical amount, inverted lines, linked back to the original.
+func buildReversal(v *cash.Voucher, reason string) *cash.Voucher {
+	rev := &cash.Voucher{
+		RefDate:          v.RefDate,
+		Type:             oppositeType(v.Type),
+		FundID:           v.FundID,
+		Currency:         v.Currency,
+		AmountMinor:      v.AmountMinor,
+		FXRate:           v.FXRate,
+		CounterpartyType: v.CounterpartyType,
+		CounterpartyID:   v.CounterpartyID,
+		CounterpartyName: v.CounterpartyName,
+		Description:      "Điều chỉnh hủy " + v.RefNo,
+		RefVouchers:      []string{v.ID},
+	}
+	if reason != "" {
+		rev.Description += ": " + reason
+	}
+	for _, l := range v.Lines {
+		rev.Lines = append(rev.Lines, cash.VoucherLine{
+			Seq:         l.Seq,
+			DebitAcc:    l.CreditAcc,
+			CreditAcc:   l.DebitAcc,
+			AmountMinor: l.AmountMinor,
+			ObjectID:    l.ObjectID,
+		})
+	}
+	return rev
+}
+
+// postReversal appends the reversal's offsetting cash-book entry, enforcing
+// the no-negative-balance rule against the same running balance.
+func (s *service) postReversal(ctx context.Context, rev *cash.Voucher) error {
+	entries, err := s.repo.ListCashBook(ctx, rev.FundID, "", rev.RefDate)
+	if err != nil {
+		return err
+	}
+	var balance int64
+	for _, e := range entries {
+		balance += e.Receive - e.Pay
+	}
+
+	entry := &cash.CashBookEntry{
+		ID:          cashBookEntryID(rev.FundID, rev.ID),
+		FundID:      rev.FundID,
+		EntryDate:   rev.RefDate,
+		VoucherDate: rev.RefDate,
+		RefNo:       rev.RefNo,
+		Type:        rev.Type,
+		Description: rev.Description,
+		Reconciled:  false,
+	}
+	switch rev.Type {
+	case cash.VoucherReceive:
+		entry.Receive = rev.AmountMinor
+		balance += rev.AmountMinor
+	case cash.VoucherPay:
+		if balance < rev.AmountMinor {
+			return cash.ErrNegativeBalance
+		}
+		entry.Pay = rev.AmountMinor
+		balance -= rev.AmountMinor
+	}
+	entry.Balance = balance
+	return s.repo.AppendCashBookEntry(ctx, entry)
+}
+
+func (s *service) VoidVoucher(ctx context.Context, actor, id, reason string) (*cash.Voucher, error) {
+	v, err := s.repo.GetVoucher(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, cash.ErrVoucherNotFound
+		}
+		return nil, err
+	}
+	switch v.State {
+	case cash.VoucherDraft, cash.VoucherApproved:
+		return s.markVoided(ctx, actor, v, reason)
+	case cash.VoucherPosted, cash.VoucherReconciled:
+		return s.voidPosted(ctx, actor, v, reason)
+	default:
+		return nil, cash.ErrWrongState
+	}
+}
+
+func (s *service) markVoided(ctx context.Context, actor string, v *cash.Voucher, reason string) (*cash.Voucher, error) {
+	v.State = cash.VoucherVoided
+	v.VoidedBy = actor
+	v.VoidReason = reason
+	v.VoidedAt = s.now().UTC().Format(time.RFC3339)
+	if err := s.repo.UpdateVoucher(ctx, v); err != nil {
+		return nil, err
+	}
+	if err := s.auditAction(ctx, actor, "voucher.void", v.ID); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+// voidPosted voids a posted/reconciled voucher via an offsetting reversal
+// (Điều 30): a reversal draft linked to the voucher is reused if present
+// (amount must match, E2), otherwise one is created and posted internally.
+func (s *service) voidPosted(ctx context.Context, actor string, v *cash.Voucher, reason string) (*cash.Voucher, error) {
+	vouchers, err := s.repo.ListVouchers(ctx, cash.VoucherFilter{FundID: v.FundID})
+	if err != nil {
+		return nil, err
+	}
+	var reversal *cash.Voucher
+	for _, cand := range vouchers {
+		if cand.State != cash.VoucherDraft || cand.Type == v.Type || cand.ID == v.ID {
+			continue
+		}
+		for _, ref := range cand.RefVouchers {
+			if ref == v.ID {
+				reversal = cand
+				break
+			}
+		}
+		if reversal != nil {
+			break
+		}
+	}
+
+	reuse := reversal != nil
+	if reuse {
+		if reversal.AmountMinor != v.AmountMinor {
+			return nil, cash.ErrReversalMismatch
+		}
+	} else {
+		reversal = buildReversal(v, reason)
+		id, err := newID()
+		if err != nil {
+			return nil, err
+		}
+		reversal.ID = id
+		refNo, err := s.repo.NextRefNo(ctx, reversal.FundID, reversal.RefDate[:7], reversal.Type)
+		if err != nil {
+			return nil, err
+		}
+		reversal.RefNo = refNo
+	}
+
+	if err := s.postReversal(ctx, reversal); err != nil {
+		return nil, err
+	}
+
+	reversal.State = cash.VoucherVoided
+	reversal.VoidedBy = actor
+	reversal.VoidReason = "đối ứng " + v.RefNo
+	reversal.VoidedAt = s.now().UTC().Format(time.RFC3339)
+	if err := s.repo.UpdateVoucher(ctx, reversal); err != nil {
+		return nil, err
+	}
+	if err := s.auditAction(ctx, actor, "voucher.reversal.create", reversal.ID); err != nil {
+		return nil, err
+	}
+
+	v.RefVouchers = append(v.RefVouchers, reversal.ID)
+	return s.markVoided(ctx, actor, v, reason)
 }
 
 func formatMoney(v int64) string {

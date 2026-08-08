@@ -227,3 +227,39 @@ func (r *sqliteRepository) ListCashCounts(ctx context.Context, fundID string) ([
 	}
 	return out, rows.Err()
 }
+
+func (r *sqliteRepository) CreateReconciliation(ctx context.Context, rec *cash.Reconciliation) error {
+	return r.upsertDoc(ctx, "cash_reconciliations", rec.ID, rec)
+}
+
+func (r *sqliteRepository) GetReconciliation(ctx context.Context, id string) (*cash.Reconciliation, error) {
+	var rec cash.Reconciliation
+	if err := r.getDoc(ctx, "cash_reconciliations", id, &rec); err != nil {
+		return nil, err
+	}
+	return &rec, nil
+}
+
+func (r *sqliteRepository) ListReconciliations(ctx context.Context, fundID string) ([]*cash.Reconciliation, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT data FROM cash_reconciliations WHERE json_extract(data, '$.fund_id') = ?
+		 ORDER BY json_extract(data, '$.created_at') DESC`, fundID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*cash.Reconciliation
+	for rows.Next() {
+		var data string
+		if err := rows.Scan(&data); err != nil {
+			return nil, err
+		}
+		var rec cash.Reconciliation
+		if err := json.Unmarshal([]byte(data), &rec); err != nil {
+			return nil, err
+		}
+		out = append(out, &rec)
+	}
+	return out, rows.Err()
+}

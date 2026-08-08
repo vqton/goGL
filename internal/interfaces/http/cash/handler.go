@@ -30,9 +30,12 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g.PATCH("/vouchers/:id", h.updateVoucher)
 	g.POST("/vouchers/:id/approve", h.approveVoucher)
 	g.POST("/vouchers/:id/post", h.postVoucher)
+	g.POST("/vouchers/:id/void", h.voidVoucher)
 	g.GET("/book", h.getCashBook)
 	g.POST("/close-day", h.closeDay)
 	g.GET("/counts", h.listCashCounts)
+	g.POST("/reconcile", h.reconcileMonth)
+	g.GET("/reconciliations", h.listReconciliations)
 }
 
 func (h *Handler) actor(c *gin.Context) string {
@@ -57,7 +60,8 @@ func respondError(c *gin.Context, err error) {
 		errors.Is(err, domaincash.ErrPeriodClosed),
 		errors.Is(err, domaincash.ErrNegativeBalance),
 		errors.Is(err, domaincash.ErrOpenCountPending),
-		errors.Is(err, domaincash.ErrReversalMissing):
+		errors.Is(err, domaincash.ErrReversalMissing),
+		errors.Is(err, domaincash.ErrReversalMismatch):
 		code = http.StatusUnprocessableEntity
 	default:
 		code = http.StatusBadRequest
@@ -194,4 +198,51 @@ func (h *Handler) listCashCounts(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, counts)
+}
+
+type voidRequest struct {
+	Reason string `json:"reason"`
+}
+
+func (h *Handler) voidVoucher(c *gin.Context) {
+	var req voidRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "BAD_REQUEST", "message": err.Error()}})
+		return
+	}
+	v, err := h.svc.VoidVoucher(c.Request.Context(), h.actor(c), c.Param("id"), req.Reason)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+type reconcileRequest struct {
+	FundID            string `json:"fund_id"`
+	Period            string `json:"period"`
+	AccountantBalance int64  `json:"accountant_balance"`
+}
+
+func (h *Handler) reconcileMonth(c *gin.Context) {
+	var req reconcileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "BAD_REQUEST", "message": err.Error()}})
+		return
+	}
+	rec, err := h.svc.ReconcileMonth(c.Request.Context(), h.actor(c), req.FundID, req.Period, req.AccountantBalance)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, rec)
+}
+
+func (h *Handler) listReconciliations(c *gin.Context) {
+	recs, err := h.svc.ListReconciliations(c.Request.Context(), c.Query("fund_id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, recs)
 }

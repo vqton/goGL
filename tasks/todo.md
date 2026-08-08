@@ -26,10 +26,10 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 - [x] T2.6 Posting-rule tests (negative, double-post, close). Verify: coverage ≥ 80% service.
 
 ## Phase 3 — Reconciliation, void, correction
-- [ ] T3.1 ReconcileMonth → biên bản → 3-way sign → reconciled. Accept: books must match; open count blocks. Verify: tests.
-- [ ] T3.2 VoidVoucher (direct + Điều 30 reversal pair, chief approval). Accept: posted void requires reversal. Verify: tests.
-- [ ] T3.3 HTTP + S07a-DN view + biên bản endpoints. Verify: httptest.
-- [ ] T3.4 UC-5/UC-6 error-path tests. Verify: `go test ./...`.
+- [x] T3.1 ReconcileMonth → biên bản → 3-way sign → reconciled. Accept: books must match; open count blocks. Verify: tests.
+- [x] T3.2 VoidVoucher (direct + Điều 30 reversal pair, chief approval). Accept: posted void requires reversal. Verify: tests.
+- [x] T3.3 HTTP + S07a-DN view + biên bản endpoints. Verify: httptest.
+- [x] T3.4 UC-5/UC-6 error-path tests. Verify: `go test ./...`.
 
 ## Phase 4 — Reports, templates, UX
 - [ ] T4.1 Print templates (01-TT, 02-TT, S07-DN, S07a-DN, biên bản). Accept: render per `05-ui §7`. Verify: golden strings.

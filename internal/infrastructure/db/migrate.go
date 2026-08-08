@@ -10,6 +10,7 @@ var tables = []string{
 	"cash_vouchers",
 	"cash_book",
 	"cash_counts",
+	"cash_reconciliations",
 	"bank_transactions",
 	"purchase_invoices",
 	"sales_invoices",

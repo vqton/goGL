@@ -15,4 +15,5 @@ var (
 	ErrCashierRequired  = errors.New("cash: action requires the cashier role")
 	ErrOpenCountPending = errors.New("cash: open cash count blocks the operation")
 	ErrReversalMissing  = errors.New("cash: posted void requires an offsetting reversal")
+	ErrReversalMismatch = errors.New("cash: reversal amount must equal the original")
 )
