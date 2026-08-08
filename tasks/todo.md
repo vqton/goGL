@@ -13,7 +13,7 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 ## Phase 1 — Funds + voucher lifecycle
 - [x] T1.1 Domain: Fund, Voucher, VoucherLine, enums. Accept: compiles, types per `02-spec §2`.
 - [x] T1.2 Repository: fund+voucher CRUD, NextRefNo seq. Accept: sequence continuous per fund/period/type. Verify: repo test with parallel inserts.
-- [ ] T1.3 Service: CreateFund/ListFunds/CreateVoucher/UpdateVoucher/ApproveVoucher. Accept: lines balance (BR5); refno assigned; approve≠preparer (R6). Verify: unit tests.
+- [x] T1.3 Service: CreateFund/ListFunds/CreateVoucher/UpdateVoucher/ApproveVoucher. Accept: lines balance (BR5); refno assigned; approve≠preparer (R6). Verify: unit tests.
 - [ ] T1.4 HTTP handlers + wiring in main.go. Accept: create/get/list/approve reachable. Verify: `go run ./cmd/server` smoke + httptest.
 - [ ] T1.5 Lifecycle tests. Verify: `go test ./internal/application/cash/... ./internal/interfaces/http/cash/...`.
 
