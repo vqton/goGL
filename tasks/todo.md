@@ -6,7 +6,7 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 - [ ] T0.1 Exact-decimal money type (`core.Money` → int64 minor units). Accept: no float in cash paths. Verify: `go build ./...`; vet clean.
 - [x] T0.2 Migrations: `cash_funds`, `cash_vouchers`, `cash_book`, `cash_counts`, `cash_sequences`. Accept: tables created idempotently. Verify: `db.Migrate` runs twice, no error.
 - [x] T0.3 Seed Casbin roles/policies (cashier, cash_accountant, chief_accountant, director). Accept: enforcement blocks accountant from `/post`. Verify: authz tests.
-- [ ] T0.4 Audit seam for create/update/transition. Accept: every mutation writes audit row. Verify: integration test.
+- [x] T0.4 Audit seam for create/update/transition. Accept: every mutation writes audit row. Verify: integration test (wired into cash service in Phase 1).
 
 **Checkpoint:** build/vet/test green.
 
