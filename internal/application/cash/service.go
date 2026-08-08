@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -43,6 +44,17 @@ type noopLedger struct{}
 
 func (noopLedger) Post(context.Context, LedgerEntry) error { return nil }
 
+// Notifier is the seam for out-of-band notifications. CloseDay uses it to
+// alert the chief accountant when a count mismatch is found (R7). A no-op
+// keeps the skeleton runnable until real channels exist.
+type Notifier interface {
+	Notify(ctx context.Context, recipientRole, subject, body string) error
+}
+
+type noopNotifier struct{}
+
+func (noopNotifier) Notify(context.Context, string, string, string) error { return nil }
+
 type Service interface {
 	CreateFund(ctx context.Context, f *cash.Fund) error
 	ListFunds(ctx context.Context) ([]*cash.Fund, error)
@@ -55,13 +67,17 @@ type Service interface {
 	ListVouchers(ctx context.Context, f cash.VoucherFilter) ([]*cash.Voucher, error)
 
 	GetCashBook(ctx context.Context, fundID, from, to string) ([]*cash.CashBookEntry, error)
+
+	CloseDay(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error)
+	ListCashCounts(ctx context.Context, fundID string) ([]*cash.CashCount, error)
 }
 
 type service struct {
-	repo   cash.Repository
-	audit  AuditRecorder
-	ledger LedgerWriter
-	now    func() time.Time
+	repo     cash.Repository
+	audit    AuditRecorder
+	ledger   LedgerWriter
+	notifier Notifier
+	now      func() time.Time
 }
 
 type Option func(*service)
@@ -70,8 +86,12 @@ func WithLedger(l LedgerWriter) Option {
 	return func(s *service) { s.ledger = l }
 }
 
+func WithNotifier(n Notifier) Option {
+	return func(s *service) { s.notifier = n }
+}
+
 func NewService(repo cash.Repository, audit AuditRecorder, opts ...Option) Service {
-	s := &service{repo: repo, audit: audit, ledger: noopLedger{}, now: time.Now}
+	s := &service{repo: repo, audit: audit, ledger: noopLedger{}, notifier: noopNotifier{}, now: time.Now}
 	for _, o := range opts {
 		o(s)
 	}
@@ -316,6 +336,100 @@ func (s *service) GetCashBook(ctx context.Context, fundID, from, to string) ([]*
 func cashBookEntryID(fundID, voucherID string) string {
 	h := sha256.Sum256([]byte("cash_book\x00" + fundID + "\x00" + voucherID))
 	return hex.EncodeToString(h[:])
+}
+
+func cashCountID(fundID, date string) string {
+	h := sha256.Sum256([]byte("cash_count\x00" + fundID + "\x00" + date))
+	return hex.EncodeToString(h[:])
+}
+
+func (s *service) CloseDay(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error) {
+	fund, err := s.loadActiveFund(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range fund.ClosedDays {
+		if d == date {
+			return nil, cash.ErrPeriodClosed
+		}
+	}
+
+	counts, err := s.repo.ListCashCounts(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range counts {
+		if c.CountDate == date && c.State == "open" {
+			return nil, cash.ErrOpenCountPending
+		}
+	}
+
+	entries, err := s.repo.ListCashBook(ctx, fundID, "", date)
+	if err != nil {
+		return nil, err
+	}
+	var bookBalance int64
+	for _, e := range entries {
+		bookBalance += e.Receive - e.Pay
+	}
+
+	count := &cash.CashCount{
+		ID:            cashCountID(fundID, date),
+		FundID:        fundID,
+		CountDate:     date,
+		BookBalance:   bookBalance,
+		CountedAmount: countedAmount,
+		Difference:    bookBalance - countedAmount,
+		Participants:  participants,
+	}
+
+	if countedAmount != bookBalance {
+		count.State = "open"
+		if err := s.repo.CreateCashCount(ctx, count); err != nil {
+			return nil, err
+		}
+		if err := s.auditAction(ctx, actor, "cash.count.open", count.ID); err != nil {
+			return nil, err
+		}
+		if err := s.notifier.Notify(ctx, "chief_accountant",
+			"Chênh lệch quỹ "+date,
+			"Sổ quỹ "+formatMoney(bookBalance)+", kiểm kê "+formatMoney(countedAmount)); err != nil {
+			return nil, err
+		}
+		return count, nil
+	}
+
+	count.State = "resolved"
+	if err := s.repo.CreateCashCount(ctx, count); err != nil {
+		return nil, err
+	}
+	fund.ClosedDays = append(fund.ClosedDays, date)
+	if err := s.repo.CreateFund(ctx, fund); err != nil {
+		return nil, err
+	}
+	if err := s.auditAction(ctx, actor, "cash.close_day", count.ID); err != nil {
+		return nil, err
+	}
+	return count, nil
+}
+
+func (s *service) ListCashCounts(ctx context.Context, fundID string) ([]*cash.CashCount, error) {
+	return s.repo.ListCashCounts(ctx, fundID)
+}
+
+func formatMoney(v int64) string {
+	neg := v < 0
+	if neg {
+		v = -v
+	}
+	s := fmt.Sprintf("%d", v)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	if neg {
+		return "-" + s
+	}
+	return s
 }
 
 func (s *service) GetVoucher(ctx context.Context, id string) (*cash.Voucher, error) {
