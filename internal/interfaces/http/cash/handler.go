@@ -29,6 +29,10 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g.GET("/vouchers/:id", h.getVoucher)
 	g.PATCH("/vouchers/:id", h.updateVoucher)
 	g.POST("/vouchers/:id/approve", h.approveVoucher)
+	g.POST("/vouchers/:id/post", h.postVoucher)
+	g.GET("/book", h.getCashBook)
+	g.POST("/close-day", h.closeDay)
+	g.GET("/counts", h.listCashCounts)
 }
 
 func (h *Handler) actor(c *gin.Context) string {
@@ -142,4 +146,52 @@ func (h *Handler) approveVoucher(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, v)
+}
+
+func (h *Handler) postVoucher(c *gin.Context) {
+	v, err := h.svc.PostVoucher(c.Request.Context(), h.actor(c), c.Param("id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+func (h *Handler) getCashBook(c *gin.Context) {
+	entries, err := h.svc.GetCashBook(c.Request.Context(), c.Query("fund_id"), c.Query("from"), c.Query("to"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, entries)
+}
+
+type closeDayRequest struct {
+	FundID        string   `json:"fund_id"`
+	Date          string   `json:"date"`
+	CountedAmount int64    `json:"counted_amount"`
+	Participants  []string `json:"participants"`
+}
+
+func (h *Handler) closeDay(c *gin.Context) {
+	var req closeDayRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "BAD_REQUEST", "message": err.Error()}})
+		return
+	}
+	count, err := h.svc.CloseDay(c.Request.Context(), h.actor(c), req.FundID, req.Date, req.CountedAmount, req.Participants)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, count)
+}
+
+func (h *Handler) listCashCounts(c *gin.Context) {
+	counts, err := h.svc.ListCashCounts(c.Request.Context(), c.Query("fund_id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, counts)
 }

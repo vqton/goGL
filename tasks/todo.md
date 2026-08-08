@@ -21,9 +21,9 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 - [x] T2.1 Repo: AppendCashBookEntry/ListCashBook/balance lookup. Accept: running balance correct. Verify: golden test.
 - [x] T2.2 Service: PostVoucher/GetCashBook. Accept: BR2 (no negative), BR8 (close guard), BR10 (idempotent). Verify: unit tests.
 - [x] T2.3 Service: CloseDay/CreateCashCount. Accept: diff → open CashCount + notify chief. Verify: tests.
-- [ ] T2.4 HTTP: post/close-day/counts + S07-DN view. Accept: cashier can Ghi sổ. Verify: httptest.
+- [x] T2.4 HTTP: post/close-day/counts + S07-DN view. Accept: cashier can Ghi sổ. Verify: httptest.
 - [x] T2.5 Ledger seam interface + mock impl. Accept: posting writes TK111 entry via seam. Verify: mock assertion.
-- [ ] T2.6 Posting-rule tests (negative, double-post, close). Verify: coverage ≥ 80% service.
+- [x] T2.6 Posting-rule tests (negative, double-post, close). Verify: coverage ≥ 80% service.
 
 ## Phase 3 — Reconciliation, void, correction
 - [ ] T3.1 ReconcileMonth → biên bản → 3-way sign → reconciled. Accept: books must match; open count blocks. Verify: tests.
