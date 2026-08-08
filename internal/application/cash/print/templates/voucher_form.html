@@ -1,0 +1,37 @@
+{{define "voucher_form"}}<div class="print-form" style="font-family:'Times New Roman',serif;max-width:700px;margin:0 auto;font-size:13px;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:4px;">
+    <div style="font-size:11px;">
+      <div>Đơn vị: {{.Fund.Name}}</div>
+      {{if .Fund.Description}}<div>Bộ phận: {{.Fund.Description}}</div>{{end}}
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:16px;font-weight:bold;">{{.Title}}</div>
+      <div style="font-size:11px;">{{.FormCode}}</div>
+      <div style="font-size:11px;">Quyển số: {{.BookNo}} &nbsp; Số: {{.Voucher.RefNo}}</div>
+      <div style="font-size:11px;">Nợ: {{.DebitAcc}} &nbsp; Có: {{.CreditAcc}}</div>
+    </div>
+    <div style="font-size:11px;">Ngày {{fmtDate .Voucher.RefDate}}</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;">
+    <tr><td style="width:200px;">{{.PartyLabel}}:</td><td>{{.Party}}</td></tr>
+    <tr><td>Diễn giải:</td><td>{{.Voucher.Description}}</td></tr>
+    <tr><td>Số tiền (bằng số):</td><td><b>{{fmtMoney .Voucher.AmountMinor}}</b> {{.Voucher.Currency}}</td></tr>
+    <tr><td>Số tiền (bằng chữ):</td><td>{{.Voucher.AmountWords}}</td></tr>
+    {{if .FX}}<tr><td>Tỷ giá:</td><td>{{.FX}}</td></tr>{{end}}
+    <tr><td>Kèm theo:</td><td>..... chứng từ gốc</td></tr>
+  </table>
+  <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:11px;text-align:center;">
+    <tr>
+      <td style="width:25%;">Người lập phiếu</td>
+      <td style="width:25%;">Kế toán trưởng</td>
+      <td style="width:25%;">Thủ quỹ</td>
+      <td style="width:25%;">{{.SignerLabel}}</td>
+    </tr>
+    <tr style="height:52px;vertical-align:bottom;">
+      <td>{{.Voucher.CreatedBy}}</td>
+      <td>{{.Voucher.ApprovedBy}}</td>
+      <td>{{.Voucher.PostedBy}}</td>
+      <td>{{.Party}}</td>
+    </tr>
+  </table>
+</div>{{end}}

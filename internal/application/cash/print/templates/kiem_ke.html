@@ -1,0 +1,25 @@
+{{define "kiem_ke"}}<div class="print-form" style="font-family:'Times New Roman',serif;max-width:640px;margin:0 auto;font-size:13px;">
+  <div style="display:flex;justify-content:space-between;font-size:11px;">
+    <div>Đơn vị: {{.Fund.Name}}</div>
+    <div style="text-align:right;">(Ban hành theo TT 200/2014/TT-BTC)</div>
+  </div>
+  <div style="text-align:center;margin-top:4px;">
+    <div style="font-size:16px;font-weight:bold;">BIÊN BẢN KIỂM KÊ QUỸ</div>
+    <div style="font-size:11px;">Ngày {{fmtDate .Count.CountDate}}</div>
+  </div>
+  <p>Thành phần tham gia: {{join .Count.Participants ", "}}</p>
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <tr><td style="width:220px;">Số liệu trên sổ quỹ (sổ kế toán):</td><td><b>{{fmtMoney .Count.BookBalance}}</b> đồng</td></tr>
+    <tr><td>Số liệu kiểm kê thực tế:</td><td><b>{{fmtMoney .Count.CountedAmount}}</b> đồng</td></tr>
+    <tr><td>Chênh lệch:</td><td><b>{{fmtMoney .Count.Difference}}</b> đồng ({{words .Count.Difference}})</td></tr>
+    <tr><td>Kết quả xử lý:</td><td>{{.Count.Resolution}}</td></tr>
+    <tr><td>Trạng thái:</td><td>{{if eq .Count.State "resolved"}}Đã khớp — đóng sổ{{else}}Còn chênh lệch — chờ xử lý{{end}}</td></tr>
+  </table>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:16px;text-align:center;">
+    <tr>
+      <td style="width:34%;">Người kiểm kê</td>
+      <td style="width:33%;">Kế toán trưởng</td>
+      <td style="width:33%;">Thủ quỹ</td>
+    </tr>
+  </table>
+</div>{{end}}

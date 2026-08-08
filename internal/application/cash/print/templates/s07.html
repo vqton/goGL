@@ -1,0 +1,54 @@
+{{define "s07"}}<div class="print-form" style="font-family:'Times New Roman',serif;max-width:780px;margin:0 auto;font-size:12px;">
+  <div style="display:flex;justify-content:space-between;font-size:11px;">
+    <div>
+      <div>Đơn vị: {{.Fund.Name}}</div>
+      {{if .Fund.Description}}<div>Bộ phận: {{.Fund.Description}}</div>{{end}}
+    </div>
+    <div style="text-align:right;">Mẫu số: {{.FormCode}}<br>(Ban hành theo TT 200/2014/TT-BTC)</div>
+  </div>
+  <div style="text-align:center;margin-top:6px;">
+    <div style="font-size:16px;font-weight:bold;">{{.Title}}</div>
+    {{if .Note}}<div style="font-size:11px;">{{.Note}}</div>{{end}}
+    <div style="font-size:11px;">Quỹ tiền mặt: {{.Fund.Name}} — Loại tiền: {{.Fund.Currency}} — TK: {{.Fund.Account}}</div>
+    <div style="font-size:11px;">Năm: {{.Year}}</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;" border="1">
+    <thead>
+      <tr style="text-align:center;">
+        <th style="width:9%;">A<br>Ngày ghi sổ</th>
+        <th style="width:9%;">B<br>Ngày CT</th>
+        <th style="width:13%;">C<br>Số hiệu CT</th>
+        <th style="width:30%;">D<br>Diễn giải</th>
+        <th style="width:13%;">1<br>Thu</th>
+        <th style="width:13%;">2<br>Chi</th>
+        <th style="width:13%;">3<br>Tồn</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td colspan="4">Số dư đầu tháng</td>
+        <td></td><td></td>
+        <td style="text-align:right;">{{fmtMoney .Opening}}</td>
+      </tr>
+      {{range .Entries}}
+      <tr>
+        <td style="text-align:center;">{{fmtDate .EntryDate}}</td>
+        <td style="text-align:center;">{{fmtDate .VoucherDate}}</td>
+        <td style="text-align:center;">{{.RefNo}}</td>
+        <td>{{.Description}}</td>
+        <td style="text-align:right;">{{fmtMoney .Receive}}</td>
+        <td style="text-align:right;">{{fmtMoney .Pay}}</td>
+        <td style="text-align:right;">{{fmtMoney .Balance}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <div style="text-align:right;font-size:11px;margin-top:4px;">Ngày ..... tháng ..... năm {{.Year}}</div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;text-align:center;">
+    <tr>
+      <td style="width:33%;">Người ghi sổ</td>
+      <td style="width:34%;">Kế toán trưởng</td>
+      <td style="width:33%;">Thủ trưởng đơn vị<br>(Ký, họ tên, đóng dấu)</td>
+    </tr>
+  </table>
+</div>{{end}}

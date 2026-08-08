@@ -1,0 +1,24 @@
+{{define "doi_chieu"}}<div class="print-form" style="font-family:'Times New Roman',serif;max-width:640px;margin:0 auto;font-size:13px;">
+  <div style="display:flex;justify-content:space-between;font-size:11px;">
+    <div>Đơn vị: {{.Fund.Name}}</div>
+    <div style="text-align:right;">(Ban hành theo TT 200/2014/TT-BTC)</div>
+  </div>
+  <div style="text-align:center;margin-top:4px;">
+    <div style="font-size:16px;font-weight:bold;">BIÊN BẢN ĐỐI CHIẾU QUỸ CUỐI THÁNG</div>
+    <div style="font-size:11px;">Tháng {{.Month}} — Quỹ: {{.Fund.Name}} ({{.Fund.Currency}})</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;">
+    <tr><td style="width:220px;">Số dư theo sổ quỹ (thủ quỹ):</td><td><b>{{fmtMoney .Rec.CashierBalance}}</b> đồng</td></tr>
+    <tr><td>Số dư theo sổ kế toán:</td><td><b>{{fmtMoney .Rec.AccountantBalance}}</b> đồng</td></tr>
+    <tr><td>Chênh lệch:</td><td><b>{{fmtMoney .Rec.Difference}}</b> đồng ({{words .Rec.Difference}})</td></tr>
+    <tr><td>Kết quả:</td><td>{{if eq .Rec.State "resolved"}}Đã khớp — khóa sổ tháng{{else}}Còn chênh lệch — chờ xử lý{{end}}</td></tr>
+    {{if .Rec.SignedBy}}<tr><td>Xác nhận của các bên:</td><td>{{join .Rec.SignedBy ", "}}</td></tr>{{end}}
+  </table>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:16px;text-align:center;">
+    <tr>
+      <td style="width:33%;">Thủ quỹ</td>
+      <td style="width:34%;">Kế toán trưởng</td>
+      <td style="width:33%;">Thủ trưởng đơn vị</td>
+    </tr>
+  </table>
+</div>{{end}}
