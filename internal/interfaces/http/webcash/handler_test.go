@@ -256,6 +256,58 @@ func TestCloseDayAndReconcileFromWeb(t *testing.T) {
 	}
 }
 
+func TestCSVExport(t *testing.T) {
+	sqlDB := openDB(t)
+	svc := appcash.NewService(perscash.NewSqliteRepository(sqlDB), noopAuditor{})
+	r := buildRouter(t, svc)
+	fund := seedFund(t, svc)
+
+	vals := url.Values{
+		"type":              {"receive"},
+		"fund_id":           {fund.ID},
+		"ref_date":          {"2026-08-25"},
+		"counterparty_name": {"Nguyễn Văn A"},
+		"description":       {"Thu tiền bán hàng"},
+		"amount_minor":      {"123045067"},
+		"other_account":     {"5111"},
+	}
+	w := doForm(t, r, http.MethodPost, "/cash/vouchers", vals, "cashier01")
+	id := redirectID(t, w)
+	doForm(t, r, http.MethodPost, "/cash/vouchers/"+id+"/approve", url.Values{}, "accountant01")
+	doForm(t, r, http.MethodPost, "/cash/vouchers/"+id+"/post", url.Values{}, "cashier01")
+
+	// Book CSV: header row + the posted entry, prefixed by BOM for Excel.
+	w = getWithUser(t, r, "/cash/export/book.csv?fund_id="+fund.ID, "cashier01")
+	body := w.Body.String()
+	if ct := w.Header().Get("Content-Type"); ct != "text/csv; charset=utf-8" {
+		t.Errorf("book csv Content-Type = %q", ct)
+	}
+	if !strings.HasPrefix(body, "\ufeff") {
+		t.Errorf("book csv missing UTF-8 BOM")
+	}
+	for _, want := range []string{"Ngày CT,Số hiệu,Diễn giải,Thu,Chi,Tồn", "2026-08-25,PT/2026-08/000001,Thu tiền bán hàng,123045067,0,123045067"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("book csv missing %q\nbody=%q", want, body)
+		}
+	}
+
+	// Vouchers CSV filtered to the fund.
+	w = getWithUser(t, r, "/cash/export/vouchers.csv?fund_id="+fund.ID, "cashier01")
+	body = w.Body.String()
+	if !strings.Contains(body, "PT/2026-08/000001,2026-08-25,Thu,Nguyễn Văn A,Thu tiền bán hàng,123045067,Đã ghi sổ") {
+		t.Errorf("vouchers csv missing row\nbody=%q", body)
+	}
+
+	// Reconciliations CSV (empty is fine, header present).
+	w = getWithUser(t, r, "/cash/export/reconciliations.csv?fund_id="+fund.ID, "cashier01")
+	if w.Code != http.StatusOK {
+		t.Errorf("reconciliations csv status = %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Quỹ,Kỳ,Thủ quỹ,Kế toán,Chênh lệch,Trạng thái,Ngày lập") {
+		t.Errorf("reconciliations csv missing header\nbody=%q", w.Body.String())
+	}
+}
+
 func TestVoidFromWeb(t *testing.T) {
 	sqlDB := openDB(t)
 	svc := appcash.NewService(perscash.NewSqliteRepository(sqlDB), noopAuditor{})

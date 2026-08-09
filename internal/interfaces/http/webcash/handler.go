@@ -8,6 +8,8 @@ package webcash
 
 import (
 	"context"
+	"encoding/csv"
+	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -59,6 +61,9 @@ func (h *Handler) Register(r *gin.Engine) {
 	c.POST("/reconcile", h.reconcile)
 	c.GET("/print/voucher/:id", h.printVoucher)
 	c.GET("/print/s07", h.printS07)
+	c.GET("/export/vouchers.csv", h.exportVouchers)
+	c.GET("/export/book.csv", h.exportBook)
+	c.GET("/export/reconciliations.csv", h.exportReconciliations)
 }
 
 func (h *Handler) actor(c *gin.Context) string {
@@ -466,4 +471,91 @@ func (h *Handler) printS07(c *gin.Context) {
 		return
 	}
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(out))
+}
+
+// csvResponse streams a UTF-8 (BOM-prefixed) CSV so Excel opens Vietnamese
+// columns correctly. filename is used in the Content-Disposition header.
+func csvResponse(c *gin.Context, filename string, header []string, rows [][]string) {
+	var b strings.Builder
+	b.WriteString("\ufeff")
+	w := csv.NewWriter(&b)
+	_ = w.Write(header)
+	for _, r := range rows {
+		_ = w.Write(r)
+	}
+	w.Flush()
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", []byte(b.String()))
+}
+
+func (h *Handler) exportVouchers(c *gin.Context) {
+	filter := domaincash.VoucherFilter{
+		FundID: c.Query("fund_id"),
+		State:  domaincash.VoucherState(c.Query("state")),
+		Type:   domaincash.VoucherType(c.Query("type")),
+		From:   c.Query("from"),
+		To:     c.Query("to"),
+	}
+	list, err := h.svc.ListVouchers(c.Request.Context(), filter)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	header := []string{"Số phiếu", "Ngày", "Loại", "Đối tượng", "Diễn giải", "Số tiền", "Trạng thái"}
+	rows := make([][]string, 0, len(list))
+	for _, v := range list {
+		loai := "Thu"
+		if v.Type == domaincash.VoucherPay {
+			loai = "Chi"
+		}
+		rows = append(rows, []string{
+			v.RefNo, v.RefDate, loai, v.CounterpartyName, v.Description,
+			strconv.FormatInt(v.AmountMinor, 10), stateLabel(v.State),
+		})
+	}
+	csvResponse(c, "vouchers.csv", header, rows)
+}
+
+func (h *Handler) exportBook(c *gin.Context) {
+	ctx := c.Request.Context()
+	fundID, from, to := c.Query("fund_id"), c.Query("from"), c.Query("to")
+	entries, err := h.svc.GetCashBook(ctx, fundID, from, to)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	header := []string{"Ngày CT", "Số hiệu", "Diễn giải", "Thu", "Chi", "Tồn"}
+	rows := make([][]string, 0, len(entries))
+	for _, e := range entries {
+		rows = append(rows, []string{
+			e.VoucherDate, e.RefNo, e.Description,
+			strconv.FormatInt(e.Receive, 10),
+			strconv.FormatInt(e.Pay, 10),
+			strconv.FormatInt(e.Balance, 10),
+		})
+	}
+	csvResponse(c, "so-quy.csv", header, rows)
+}
+
+func (h *Handler) exportReconciliations(c *gin.Context) {
+	recs, err := h.svc.ListReconciliations(c.Request.Context(), c.Query("fund_id"))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	header := []string{"Quỹ", "Kỳ", "Thủ quỹ", "Kế toán", "Chênh lệch", "Trạng thái", "Ngày lập"}
+	rows := make([][]string, 0, len(recs))
+	for _, r := range recs {
+		state := "Chưa khớp"
+		if r.State == "resolved" {
+			state = "Đã khớp"
+		}
+		rows = append(rows, []string{
+			r.FundID, r.Period,
+			strconv.FormatInt(r.CashierBalance, 10),
+			strconv.FormatInt(r.AccountantBalance, 10),
+			strconv.FormatInt(r.Difference, 10), state, r.CreatedAt,
+		})
+	}
+	csvResponse(c, "doi-chieu.csv", header, rows)
 }

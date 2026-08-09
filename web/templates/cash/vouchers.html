@@ -6,7 +6,10 @@
 <main class="mx-auto max-w-6xl px-4 py-8">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <h1 class="text-2xl font-bold tracking-tight">Phiếu thu / phiếu chi</h1>
-    <a href="/cash/vouchers/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">+ Phiếu mới</a>
+    <div class="flex flex-wrap gap-2">
+      <a href="/cash/export/vouchers.csv?fund_id={{ $.Filter.FundID }}&type={{ $.Filter.Type }}&state={{ $.Filter.State }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-100">CSV</a>
+      <a href="/cash/vouchers/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">+ Phiếu mới</a>
+    </div>
   </div>
   {{ template "shell_flash" .Flash }}
   <form method="get" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
