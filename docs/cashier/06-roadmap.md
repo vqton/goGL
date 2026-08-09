@@ -59,7 +59,7 @@ Phased, vertical slices per `planning-and-task-breakdown`. Each phase leaves the
   Measured (i5-5200U, in-memory SQLite, `-race` off): post path 3.7 ms/op,
   12-month book over 1,800 rows 86 ms/op — both well under target.
   Benchmarks in `internal/application/cash/benchmark_test.go`.
-- [ ] T5.4 Full test suite ≥ 80% coverage on cash service; go vet clean.
+- [x] T5.4 Full test suite ≥ 80% coverage on cash service; go vet clean. Measured 83.8%
 - [ ] T5.5 Production-readiness doc update + sign-off (chief accountant + BA).
 
 **Checkpoint:** green light for PROD pilot on a single fund (e.g. Q-VND).
