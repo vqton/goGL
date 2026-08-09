@@ -41,6 +41,6 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 ## Phase 5 — Hardening
 - [x] T5.1 Concurrency/idempotency soak. Accept: no duplicate entries under parallel post. Verify: race test.
 - [x] T5.2 Security review (authz matrix, validation, audit). Verify: review checklist + security-audit.
-- [ ] T5.3 Performance targets (book <500ms, post p99<100ms). Verify: benchmark.
+- [x] T5.3 Performance targets (book <500ms, post p99<100ms). Verify: benchmark.
 - [ ] T5.4 Coverage ≥ 80% cash service; vet clean. Verify: `go test -cover`, `go vet`.
 - [ ] T5.5 PROD-readiness sign-off doc update. Verify: `00-verdict.md` updated to ready.

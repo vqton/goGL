@@ -53,9 +53,12 @@ Phased, vertical slices per `planning-and-task-breakdown`. Each phase leaves the
 
 ## Phase 5 — Hardening
 
-- [ ] T5.1 Concurrency/idempotency soak test; sequence continuity under load.
-- [ ] T5.2 Security review (authz matrix, input validation, audit completeness).
-- [ ] T5.3 Load: 12-month cash book query < 500ms; posting p99 < 100ms.
+- [x] T5.1 Concurrency/idempotency soak test; sequence continuity under load.
+- [x] T5.2 Security review (authz matrix, input validation, audit completeness). See `08-security.md`.
+- [x] T5.3 Load: 12-month cash book query < 500ms; posting p99 < 100ms.
+  Measured (i5-5200U, in-memory SQLite, `-race` off): post path 3.7 ms/op,
+  12-month book over 1,800 rows 86 ms/op — both well under target.
+  Benchmarks in `internal/application/cash/benchmark_test.go`.
 - [ ] T5.4 Full test suite ≥ 80% coverage on cash service; go vet clean.
 - [ ] T5.5 Production-readiness doc update + sign-off (chief accountant + BA).
 
