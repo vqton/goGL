@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	domainaudit "goGL/internal/domain/audit"
@@ -83,6 +84,12 @@ type service struct {
 	ledger   LedgerWriter
 	notifier Notifier
 	now      func() time.Time
+
+	// mu serializes the read-compute-write mutators (post, close-day,
+	// reconcile, void). Cash book balances and closed-day/period lists are
+	// derived from a shared aggregate, so concurrent mutators must not
+	// interleave between their read and write steps (T5.1).
+	mu sync.Mutex
 }
 
 type Option func(*service)
@@ -249,6 +256,9 @@ func (s *service) ApproveVoucher(ctx context.Context, actor, id string) (*cash.V
 }
 
 func (s *service) PostVoucher(ctx context.Context, actor, id string) (*cash.Voucher, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	v, err := s.repo.GetVoucher(ctx, id)
 	if err != nil {
 		return nil, err
@@ -354,6 +364,9 @@ func cashCountID(fundID, date string) string {
 }
 
 func (s *service) CloseDay(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	fund, err := s.loadActiveFund(ctx, fundID)
 	if err != nil {
 		return nil, err
@@ -433,6 +446,9 @@ func cashReconID(fundID, period string) string {
 }
 
 func (s *service) ReconcileMonth(ctx context.Context, actor, fundID, period string, accountantBalance int64) (*cash.Reconciliation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	fund, err := s.loadActiveFund(ctx, fundID)
 	if err != nil {
 		return nil, err
@@ -589,6 +605,9 @@ func (s *service) postReversal(ctx context.Context, rev *cash.Voucher) error {
 }
 
 func (s *service) VoidVoucher(ctx context.Context, actor, id, reason string) (*cash.Voucher, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	v, err := s.repo.GetVoucher(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

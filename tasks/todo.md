@@ -39,7 +39,7 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 ^- [x] T4.5 Golden S07-DN fixture test. Verify: `go test` includes fixture.
 
 ## Phase 5 — Hardening
-- [ ] T5.1 Concurrency/idempotency soak. Accept: no duplicate entries under parallel post. Verify: race test.
+- [x] T5.1 Concurrency/idempotency soak. Accept: no duplicate entries under parallel post. Verify: race test.
 - [ ] T5.2 Security review (authz matrix, validation, audit). Verify: review checklist + security-audit.
 - [ ] T5.3 Performance targets (book <500ms, post p99<100ms). Verify: benchmark.
 - [ ] T5.4 Coverage ≥ 80% cash service; vet clean. Verify: `go test -cover`, `go vet`.
