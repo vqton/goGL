@@ -60,7 +60,7 @@ Phased, vertical slices per `planning-and-task-breakdown`. Each phase leaves the
   12-month book over 1,800 rows 86 ms/op — both well under target.
   Benchmarks in `internal/application/cash/benchmark_test.go`.
 - [x] T5.4 Full test suite ≥ 80% coverage on cash service; go vet clean. Measured 83.8%
-- [ ] T5.5 Production-readiness doc update + sign-off (chief accountant + BA).
+- [x] T5.5 Production-readiness doc update + sign-off (chief accountant + BA). See `00-verdict.md` — READY FOR PROD PILOT, signed 2026-08-09.
 
 **Checkpoint:** green light for PROD pilot on a single fund (e.g. Q-VND).
 
