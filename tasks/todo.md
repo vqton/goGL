@@ -3,7 +3,7 @@
 Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verification per task (planning-and-task-breakdown). No task touches > 5 files.
 
 ## Phase 0 — Foundation
-- [ ] T0.1 Exact-decimal money type (`core.Money` → int64 minor units). Accept: no float in cash paths. Verify: `go build ./...`; vet clean.
+- [x] T0.1 Exact-decimal money type (`core.Money` → int64 minor units). Accept: no float in cash paths. Verify: `go build ./...`; vet clean.
 - [x] T0.2 Migrations: `cash_funds`, `cash_vouchers`, `cash_book`, `cash_counts`, `cash_sequences`. Accept: tables created idempotently. Verify: `db.Migrate` runs twice, no error.
 - [x] T0.3 Seed Casbin roles/policies (cashier, cash_accountant, chief_accountant, director). Accept: enforcement blocks accountant from `/post`. Verify: authz tests.
 - [x] T0.4 Audit seam for create/update/transition. Accept: every mutation writes audit row. Verify: integration test (wired into cash service in Phase 1).
@@ -15,7 +15,7 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 - [x] T1.2 Repository: fund+voucher CRUD, NextRefNo seq. Accept: sequence continuous per fund/period/type. Verify: repo test with parallel inserts.
 - [x] T1.3 Service: CreateFund/ListFunds/CreateVoucher/UpdateVoucher/ApproveVoucher. Accept: lines balance (BR5); refno assigned; approve≠preparer (R6). Verify: unit tests.
 - [x] T1.4 HTTP handlers + wiring in main.go. Accept: create/get/list/approve reachable. Verify: `go run ./cmd/server` smoke + httptest.
-- [ ] T1.5 Lifecycle tests. Verify: `go test ./internal/application/cash/... ./internal/interfaces/http/cash/...`.
+- [x] T1.5 Lifecycle tests. Verify: `go test ./internal/application/cash/... ./internal/interfaces/http/cash/...`.
 
 ## Phase 2 — Cashier posting + cash book
 - [x] T2.1 Repo: AppendCashBookEntry/ListCashBook/balance lookup. Accept: running balance correct. Verify: golden test.
