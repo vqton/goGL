@@ -14,14 +14,14 @@ func TestService_ReconcileMonth_Resolved(t *testing.T) {
 	postReceive(t, svc, "fund-1", "2026-08-05", 5_000_000)
 	postReceive(t, svc, "fund-1", "2026-08-20", 3_000_000)
 
-	rec, err := svc.ReconcileMonth(ctx, "ketoan", "fund-1", "2026-08", 8_000_000)
+	rec, err := svc.ReconcileMonth(ctx, "ketoan", "fund-1", "2026-08", 8_000_000, []string{"thuquy", "ketoan", "giamdoc"})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 	if rec.State != "resolved" || rec.Difference != 0 || rec.CashierBalance != 8_000_000 || rec.AccountantBalance != 8_000_000 {
 		t.Fatalf("reconciliation mismatch: %+v", rec)
 	}
-	if len(rec.SignedBy) != 1 || rec.SignedBy[0] != "ketoan" {
+	if len(rec.SignedBy) != 3 || rec.SignedBy[0] != "thuquy" || rec.SignedBy[1] != "ketoan" || rec.SignedBy[2] != "giamdoc" {
 		t.Fatalf("signature mismatch: %+v", rec.SignedBy)
 	}
 
@@ -44,7 +44,7 @@ func TestService_ReconcileMonth_ClosesPeriod(t *testing.T) {
 	mustCreateFund(t, svc, "fund-1")
 	postReceive(t, svc, "fund-1", "2026-08-05", 5_000_000)
 
-	if _, err := svc.ReconcileMonth(ctx, "ketoan", "fund-1", "2026-08", 5_000_000); err != nil {
+	if _, err := svc.ReconcileMonth(ctx, "ketoan", "fund-1", "2026-08", 5_000_000, []string{"thuquy", "ketoan", "giamdoc"}); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 
@@ -69,12 +69,15 @@ func TestService_ReconcileMonth_Difference(t *testing.T) {
 	mustCreateFund(t, svc, "fund-1")
 	postReceive(t, svc, "fund-1", "2026-08-05", 5_000_000)
 
-	rec, err := svc.ReconcileMonth(ctx, "ketoan", "fund-1", "2026-08", 4_000_000)
+	rec, err := svc.ReconcileMonth(ctx, "ketoan", "fund-1", "2026-08", 4_000_000, []string{"thuquy", "ketoan", "giamdoc"})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 	if rec.State != "diff" || rec.Difference != 1_000_000 {
 		t.Fatalf("reconciliation mismatch: %+v", rec)
+	}
+	if len(rec.SignedBy) != 3 {
+		t.Fatalf("expected 3 signers, got %+v", rec.SignedBy)
 	}
 	if a.logs[len(a.logs)-1].Action != "cash.reconcile.diff" {
 		t.Fatalf("expected cash.reconcile.diff audit, got %+v", a.logs[len(a.logs)-1])
@@ -91,7 +94,7 @@ func TestService_ReconcileMonth_OpenCountBlocks(t *testing.T) {
 	if _, err := svc.CloseDay(ctx, "thuquy", "fund-1", "2026-08-05", 4_000_000, nil); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	if _, err := svc.ReconcileMonth(ctx, "ketoan", "fund-1", "2026-08", 5_000_000); err != domaincash.ErrOpenCountPending {
+	if _, err := svc.ReconcileMonth(ctx, "ketoan", "fund-1", "2026-08", 5_000_000, []string{"thuquy", "ketoan", "giamdoc"}); err != domaincash.ErrOpenCountPending {
 		t.Fatalf("expected ErrOpenCountPending, got %v", err)
 	}
 }

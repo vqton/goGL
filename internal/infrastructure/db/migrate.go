@@ -38,6 +38,7 @@ var tables = []string{
 	"audit_logs",
 	"backup_jobs",
 	"casbin_policies",
+	"cash_sequences",
 }
 
 func Migrate(ctx context.Context, d *sql.DB) error {
@@ -50,19 +51,5 @@ func Migrate(ctx context.Context, d *sql.DB) error {
 			return err
 		}
 	}
-	return createCashSequences(ctx, d)
-}
-
-func createCashSequences(ctx context.Context, d *sql.DB) error {
-	q := `CREATE TABLE IF NOT EXISTS cash_sequences (
-		id TEXT PRIMARY KEY,
-		data TEXT NOT NULL,
-		fund_id TEXT NOT NULL,
-		period TEXT NOT NULL,
-		typ TEXT NOT NULL,
-		seq INTEGER NOT NULL DEFAULT 0,
-		UNIQUE (fund_id, period, typ)
-	)`
-	_, err := d.ExecContext(ctx, q)
-	return err
+	return nil
 }

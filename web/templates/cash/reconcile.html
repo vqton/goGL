@@ -24,6 +24,21 @@
       <span class="mb-1 block font-medium text-slate-700">Số dư theo sổ kế toán</span>
       <input type="number" name="accountant_balance" min="0" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
     </label>
+    <fieldset class="grid gap-4 sm:grid-cols-3">
+      <legend class="mb-1 block text-sm font-medium text-slate-700">Đại diện ký biên bản (ba bên)</legend>
+      <label class="block text-sm">
+        <span class="mb-1 block text-xs text-slate-500">Thủ quỹ</span>
+        <input type="text" name="signer_cashier" placeholder="Tên thủ quỹ" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block text-xs text-slate-500">Kế toán trưởng</span>
+        <input type="text" name="signer_accountant" placeholder="Tên kế toán trưởng" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block text-xs text-slate-500">Thủ trưởng đơn vị</span>
+        <input type="text" name="signer_chief" placeholder="Tên thủ trưởng đơn vị" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+    </fieldset>
     <div class="flex justify-end">
       <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Đối chiếu</button>
     </div>

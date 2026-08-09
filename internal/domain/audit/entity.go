@@ -5,12 +5,12 @@ import (
 )
 
 type AuditLog struct {
-	ID        string `json:"id" bson:"_id"`
-	UserCode  string `json:"user_code" bson:"user_code"`
-	Module    string `json:"module" bson:"module"`
-	Action    string `json:"action" bson:"action"`
-	TargetID  string `json:"target_id" bson:"target_id"`
-	Timestamp string `json:"timestamp" bson:"timestamp"`
+	ID        string `json:"id"`
+	UserCode  string `json:"user_code"`
+	Module    string `json:"module"`
+	Action    string `json:"action"`
+	TargetID  string `json:"target_id"`
+	Timestamp string `json:"timestamp"`
 }
 
 type Repository interface {

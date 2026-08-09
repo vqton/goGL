@@ -34,6 +34,8 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g.GET("/book", h.getCashBook)
 	g.POST("/close-day", h.closeDay)
 	g.GET("/counts", h.listCashCounts)
+	g.POST("/counts", h.createCashCount)
+	g.POST("/counts/:id/resolve", h.resolveCashCount)
 	g.POST("/reconcile", h.reconcileMonth)
 	g.GET("/reconciliations", h.listReconciliations)
 }
@@ -51,7 +53,8 @@ func respondError(c *gin.Context, err error) {
 		errors.Is(err, domaincash.ErrVoucherNotFound):
 		code = http.StatusNotFound
 	case errors.Is(err, domaincash.ErrSelfApproval),
-		errors.Is(err, domaincash.ErrCashierRequired):
+		errors.Is(err, domaincash.ErrCashierRequired),
+		errors.Is(err, domaincash.ErrUnauthorizedActor):
 		code = http.StatusForbidden
 	case errors.Is(err, domaincash.ErrWrongState):
 		code = http.StatusConflict
@@ -61,7 +64,10 @@ func respondError(c *gin.Context, err error) {
 		errors.Is(err, domaincash.ErrNegativeBalance),
 		errors.Is(err, domaincash.ErrOpenCountPending),
 		errors.Is(err, domaincash.ErrReversalMissing),
-		errors.Is(err, domaincash.ErrReversalMismatch):
+		errors.Is(err, domaincash.ErrReversalMismatch),
+		errors.Is(err, domaincash.ErrInvalidSigners),
+		errors.Is(err, domaincash.ErrInvalidCount),
+		errors.Is(err, domaincash.ErrUnpostedVouchers):
 		code = http.StatusUnprocessableEntity
 	default:
 		code = http.StatusBadRequest
@@ -200,6 +206,45 @@ func (h *Handler) listCashCounts(c *gin.Context) {
 	c.JSON(http.StatusOK, counts)
 }
 
+type createCountRequest struct {
+	FundID        string   `json:"fund_id"`
+	Date          string   `json:"date"`
+	CountedAmount int64    `json:"counted_amount"`
+	Participants  []string `json:"participants"`
+}
+
+func (h *Handler) createCashCount(c *gin.Context) {
+	var req createCountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "BAD_REQUEST", "message": err.Error()}})
+		return
+	}
+	count, err := h.svc.CreateCashCount(c.Request.Context(), h.actor(c), req.FundID, req.Date, req.CountedAmount, req.Participants)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, count)
+}
+
+type resolveCountRequest struct {
+	Resolution string `json:"resolution"`
+}
+
+func (h *Handler) resolveCashCount(c *gin.Context) {
+	var req resolveCountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "BAD_REQUEST", "message": err.Error()}})
+		return
+	}
+	count, err := h.svc.ResolveCashCount(c.Request.Context(), h.actor(c), c.Param("id"), req.Resolution)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, count)
+}
+
 type voidRequest struct {
 	Reason string `json:"reason"`
 }
@@ -219,9 +264,10 @@ func (h *Handler) voidVoucher(c *gin.Context) {
 }
 
 type reconcileRequest struct {
-	FundID            string `json:"fund_id"`
-	Period            string `json:"period"`
-	AccountantBalance int64  `json:"accountant_balance"`
+	FundID            string   `json:"fund_id"`
+	Period            string   `json:"period"`
+	AccountantBalance int64    `json:"accountant_balance"`
+	Signers           []string `json:"signers"`
 }
 
 func (h *Handler) reconcileMonth(c *gin.Context) {
@@ -230,7 +276,7 @@ func (h *Handler) reconcileMonth(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "BAD_REQUEST", "message": err.Error()}})
 		return
 	}
-	rec, err := h.svc.ReconcileMonth(c.Request.Context(), h.actor(c), req.FundID, req.Period, req.AccountantBalance)
+	rec, err := h.svc.ReconcileMonth(c.Request.Context(), h.actor(c), req.FundID, req.Period, req.AccountantBalance, req.Signers)
 	if err != nil {
 		respondError(c, err)
 		return

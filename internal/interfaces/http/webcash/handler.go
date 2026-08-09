@@ -61,6 +61,9 @@ func (h *Handler) Register(r *gin.Engine) {
 	c.POST("/reconcile", h.reconcile)
 	c.GET("/print/voucher/:id", h.printVoucher)
 	c.GET("/print/s07", h.printS07)
+	c.GET("/print/s07a", h.printS07a)
+	c.GET("/print/kiem-ke/:id", h.printKiemKe)
+	c.GET("/print/doi-chieu/:id", h.printDoiChieu)
 	c.GET("/export/vouchers.csv", h.exportVouchers)
 	c.GET("/export/book.csv", h.exportBook)
 	c.GET("/export/reconciliations.csv", h.exportReconciliations)
@@ -438,7 +441,8 @@ func (h *Handler) reconcile(c *gin.Context) {
 		redirectErr(c, "/cash/reconcile", "Số dư kế toán không hợp lệ")
 		return
 	}
-	if _, err := h.svc.ReconcileMonth(c.Request.Context(), h.actor(c), f.Get("fund_id"), f.Get("period"), balance); err != nil {
+	if _, err := h.svc.ReconcileMonth(c.Request.Context(), h.actor(c), f.Get("fund_id"), f.Get("period"), balance,
+		[]string{f.Get("signer_cashier"), f.Get("signer_accountant"), f.Get("signer_chief")}); err != nil {
 		redirectErr(c, "/cash/reconcile", err.Error())
 		return
 	}
@@ -479,7 +483,7 @@ func (h *Handler) printS07(c *gin.Context) {
 		return
 	}
 	opening := int64(0)
-	year := "2026"
+	year := time.Now().Format("2006")
 	if len(entries) > 0 {
 		opening = entries[0].Balance - entries[0].Receive - entries[0].Pay
 		if len(entries[0].EntryDate) >= 4 {
@@ -495,6 +499,83 @@ func (h *Handler) printS07(c *gin.Context) {
 		Opening: opening,
 		Year:    year,
 	})
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(out))
+}
+
+func (h *Handler) printS07a(c *gin.Context) {
+	ctx := c.Request.Context()
+	fundID, from, to := c.Query("fund_id"), c.Query("from"), c.Query("to")
+	fund, err := h.fundByID(ctx, fundID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	entries, err := h.svc.GetCashBook(ctx, fundID, from, to)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	opening := int64(0)
+	year := time.Now().Format("2006")
+	if len(entries) > 0 {
+		opening = entries[0].Balance - entries[0].Receive - entries[0].Pay
+		if len(entries[0].EntryDate) >= 4 {
+			year = entries[0].EntryDate[:4]
+		}
+	}
+	if len(from) >= 4 {
+		year = from[:4]
+	}
+	out, err := appprint.S07aDN(appprint.S07Data{
+		Fund:    fund,
+		Entries: entries,
+		Opening: opening,
+		Year:    year,
+	})
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(out))
+}
+
+func (h *Handler) printKiemKe(c *gin.Context) {
+	ctx := c.Request.Context()
+	count, err := h.svc.GetCashCount(ctx, c.Param("id"))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	fund, err := h.fundByID(ctx, count.FundID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	out, err := appprint.KiemKeQuy(fund, count)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(out))
+}
+
+func (h *Handler) printDoiChieu(c *gin.Context) {
+	ctx := c.Request.Context()
+	rec, err := h.svc.GetReconciliation(ctx, c.Param("id"))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	fund, err := h.fundByID(ctx, rec.FundID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	out, err := appprint.BienBanDoiChieu(fund, rec)
 	if err != nil {
 		h.fail(c, err)
 		return

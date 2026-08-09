@@ -27,10 +27,10 @@ func TestConcurrent_PostSameVoucher_NoDoubleEntry(t *testing.T) {
 		{Seq: 1, DebitAcc: "1111", AmountMinor: v.AmountMinor},
 		{Seq: 2, CreditAcc: "5111", AmountMinor: v.AmountMinor},
 	}
-	if err := svc.CreateVoucher(ctx, "cashier01", v); err != nil {
+	if err := svc.CreateVoucher(ctx, "ketoan01", v); err != nil {
 		t.Fatalf("create voucher: %v", err)
 	}
-	if _, err := svc.ApproveVoucher(ctx, "accountant01", v.ID); err != nil {
+	if _, err := svc.ApproveVoucher(ctx, "giamdoc01", v.ID); err != nil {
 		t.Fatalf("approve voucher: %v", err)
 	}
 

@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/casbin/casbin/v3"
+
 	"goGL/internal/application/audit"
 	"goGL/internal/application/backup"
 	"goGL/internal/application/bank"
@@ -115,6 +117,8 @@ func main() {
 	cashSvc := cash.NewService(
 		perscash.NewSqliteRepository(sqlDB),
 		audit.NewService(persaudit.NewSqliteRepository(sqlDB)),
+		cash.WithNotifier(logNotifier{}),
+		cash.WithVoidApprover(&casbinVoidApprover{enforcer: authzEnforcer}),
 	)
 	httpcashweb.NewHandler(cashSvc, cfg.Authorization.IdentityHeader).Register(r)
 
@@ -154,4 +158,36 @@ func main() {
 	if err := r.Run(cfg.Server.HTTPAddr); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
+}
+
+// logNotifier implements cash.Notifier by logging to the server log — the
+// dev-seam until real notification channels (email/SMS) exist. CloseDay uses
+// it to alert the chief accountant of a count mismatch (R7).
+type logNotifier struct{}
+
+func (logNotifier) Notify(_ context.Context, recipientRole, subject, body string) error {
+	log.Printf("[notify] role=%s subject=%q body=%q", recipientRole, subject, body)
+	return nil
+}
+
+// casbinVoidApprover implements cash.VoidApprover against the Casbin enforcer:
+// voiding an already-posted voucher (Điều 30) requires the chief accountant's
+// approval, so the actor must hold role:chief_accountant, role:director, or
+// role:admin (the last via role inheritance through the admin role).
+type casbinVoidApprover struct {
+	enforcer *casbin.Enforcer
+}
+
+func (a *casbinVoidApprover) CanApproveVoid(_ context.Context, actor string) (bool, error) {
+	roles, err := a.enforcer.GetRolesForUser(actor)
+	if err != nil {
+		return false, err
+	}
+	for _, role := range roles {
+		switch role {
+		case "role:chief_accountant", "role:director", "role:admin":
+			return true, nil
+		}
+	}
+	return false, nil
 }

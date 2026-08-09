@@ -83,7 +83,9 @@ func TestMigrate_CashSequencesSchema(t *testing.T) {
 		t.Fatalf("iterate columns: %v", err)
 	}
 
-	for _, name := range []string{"fund_id", "period", "typ", "seq"} {
+	// cash_sequences is a plain JSON-document table like every other row;
+	// the counter lives in the 'data' doc (see repository.NextRefNo).
+	for _, name := range []string{"id", "data"} {
 		if cols[name] == "" {
 			t.Fatalf("expected column %q in cash_sequences, got %v", name, cols)
 		}

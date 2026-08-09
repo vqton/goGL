@@ -4,7 +4,7 @@
       <div>Đơn vị: {{.Fund.Name}}</div>
       {{if .Fund.Description}}<div>Bộ phận: {{.Fund.Description}}</div>{{end}}
     </div>
-    <div style="text-align:right;">Mẫu số: {{.FormCode}}<br>(Ban hành theo TT 200/2014/TT-BTC)</div>
+    <div style="text-align:right;">Mẫu số: {{.FormCode}}<br>(Ban hành theo TT 99/2025/TT-BTC)</div>
   </div>
   <div style="text-align:center;margin-top:6px;">
     <div style="font-size:16px;font-weight:bold;">{{.Title}}</div>
@@ -15,20 +15,23 @@
   <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;" border="1">
     <thead>
       <tr style="text-align:center;">
-        <th style="width:9%;">A<br>Ngày ghi sổ</th>
-        <th style="width:9%;">B<br>Ngày CT</th>
-        <th style="width:13%;">C<br>Số hiệu CT</th>
-        <th style="width:30%;">D<br>Diễn giải</th>
-        <th style="width:13%;">1<br>Thu</th>
-        <th style="width:13%;">2<br>Chi</th>
-        <th style="width:13%;">3<br>Tồn</th>
+        <th style="width:8%;">A<br>Ngày ghi sổ</th>
+        <th style="width:8%;">B<br>Ngày CT</th>
+        <th style="width:11%;">C<br>Số hiệu CT</th>
+        <th style="width:26%;">D<br>Diễn giải</th>
+        <th style="width:9%;">E<br>TK đối ứng</th>
+        <th style="width:11%;">1<br>Thu</th>
+        <th style="width:11%;">2<br>Chi</th>
+        <th style="width:11%;">3<br>Tồn</th>
+        <th style="width:5%;">G<br>Ghi chú</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td colspan="4">Số dư đầu tháng</td>
+        <td colspan="5">Số dư đầu tháng</td>
         <td></td><td></td>
         <td style="text-align:right;">{{fmtMoney .Opening}}</td>
+        <td></td>
       </tr>
       {{range .Entries}}
       <tr>
@@ -36,9 +39,11 @@
         <td style="text-align:center;">{{fmtDate .VoucherDate}}</td>
         <td style="text-align:center;">{{.RefNo}}</td>
         <td>{{.Description}}</td>
+        <td></td>
         <td style="text-align:right;">{{fmtMoney .Receive}}</td>
         <td style="text-align:right;">{{fmtMoney .Pay}}</td>
         <td style="text-align:right;">{{fmtMoney .Balance}}</td>
+        <td></td>
       </tr>
       {{end}}
     </tbody>

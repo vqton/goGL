@@ -5,13 +5,13 @@ import "errors"
 var ErrNotImplemented = errors.New("not implemented")
 
 type Money struct {
-	Amount   float64 `json:"amount" bson:"amount"`
-	Currency string  `json:"currency" bson:"currency"`
+	AmountMinor int64  `json:"amount_minor"`
+	Currency    string `json:"currency"`
 }
 
 type Period struct {
-	From string `json:"from" bson:"from"`
-	To   string `json:"to" bson:"to"`
+	From string `json:"from"`
+	To   string `json:"to"`
 }
 
 type Status string

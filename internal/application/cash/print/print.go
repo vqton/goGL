@@ -7,7 +7,6 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
-	"strconv"
 	"strings"
 
 	"goGL/internal/domain/cash"
@@ -29,20 +28,10 @@ func init() {
 }
 
 // FormatVN renders an int64 minor-unit amount with Vietnamese thousands
-// separators, e.g. 1234567 -> "1.234.567".
+// separators, e.g. 1234567 -> "1.234.567". Single implementation shared with
+// the cash application service (domain/cash.FormatVNDMinor).
 func FormatVN(n int64) string {
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	s := strconv.FormatInt(n, 10)
-	for i := len(s) - 3; i > 0; i -= 3 {
-		s = s[:i] + "." + s[i:]
-	}
-	if neg {
-		s = "-" + s
-	}
-	return s
+	return cash.FormatVNDMinor(n)
 }
 
 // FormatDate renders yyyy-mm-dd as dd/mm/yyyy. Unknown layouts pass through.

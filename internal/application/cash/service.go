@@ -3,11 +3,9 @@ package cash
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -57,6 +55,19 @@ type noopNotifier struct{}
 
 func (noopNotifier) Notify(context.Context, string, string, string) error { return nil }
 
+// VoidApprover is the seam that gates voiding a posted/reconciled voucher.
+// Per Điều 30 the void of an already-posted voucher requires the chief
+// accountant's approval; main.go wires a Casbin-backed implementation. The
+// default approves everything so the skeleton stays runnable until real
+// authorization wiring exists.
+type VoidApprover interface {
+	CanApproveVoid(ctx context.Context, actor string) (bool, error)
+}
+
+type alwaysVoidApprover struct{}
+
+func (alwaysVoidApprover) CanApproveVoid(context.Context, string) (bool, error) { return true, nil }
+
 type Service interface {
 	CreateFund(ctx context.Context, f *cash.Fund) error
 	ListFunds(ctx context.Context) ([]*cash.Fund, error)
@@ -71,19 +82,24 @@ type Service interface {
 	GetCashBook(ctx context.Context, fundID, from, to string) ([]*cash.CashBookEntry, error)
 
 	CloseDay(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error)
+	CreateCashCount(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error)
+	ResolveCashCount(ctx context.Context, actor, id, resolution string) (*cash.CashCount, error)
+	GetCashCount(ctx context.Context, id string) (*cash.CashCount, error)
 	ListCashCounts(ctx context.Context, fundID string) ([]*cash.CashCount, error)
 
 	VoidVoucher(ctx context.Context, actor, id, reason string) (*cash.Voucher, error)
-	ReconcileMonth(ctx context.Context, actor, fundID, period string, accountantBalance int64) (*cash.Reconciliation, error)
+	ReconcileMonth(ctx context.Context, actor, fundID, period string, accountantBalance int64, signers []string) (*cash.Reconciliation, error)
+	GetReconciliation(ctx context.Context, id string) (*cash.Reconciliation, error)
 	ListReconciliations(ctx context.Context, fundID string) ([]*cash.Reconciliation, error)
 }
 
 type service struct {
-	repo     cash.Repository
-	audit    AuditRecorder
-	ledger   LedgerWriter
-	notifier Notifier
-	now      func() time.Time
+	repo         cash.Repository
+	audit        AuditRecorder
+	ledger       LedgerWriter
+	notifier     Notifier
+	voidApprover VoidApprover
+	now          func() time.Time
 
 	// mu serializes the read-compute-write mutators (post, close-day,
 	// reconcile, void). Cash book balances and closed-day/period lists are
@@ -102,8 +118,16 @@ func WithNotifier(n Notifier) Option {
 	return func(s *service) { s.notifier = n }
 }
 
+func WithVoidApprover(a VoidApprover) Option {
+	return func(s *service) { s.voidApprover = a }
+}
+
 func NewService(repo cash.Repository, audit AuditRecorder, opts ...Option) Service {
-	s := &service{repo: repo, audit: audit, ledger: noopLedger{}, notifier: noopNotifier{}, now: time.Now}
+	s := &service{
+		repo: repo, audit: audit,
+		ledger: noopLedger{}, notifier: noopNotifier{}, voidApprover: alwaysVoidApprover{},
+		now: time.Now,
+	}
 	for _, o := range opts {
 		o(s)
 	}
@@ -267,6 +291,12 @@ func (s *service) PostVoucher(ctx context.Context, actor, id string) (*cash.Vouc
 		return nil, cash.ErrWrongState
 	}
 
+	// UC-3 E2: the poster must be a third party — neither the preparer nor
+	// the approver (R6).
+	if actor == v.CreatedBy || actor == v.ApprovedBy {
+		return nil, cash.ErrUnauthorizedActor
+	}
+
 	fund, err := s.loadActiveFund(ctx, v.FundID)
 	if err != nil {
 		return nil, err
@@ -286,10 +316,7 @@ func (s *service) PostVoucher(ctx context.Context, actor, id string) (*cash.Vouc
 	if err != nil {
 		return nil, err
 	}
-	var balance int64
-	for _, e := range entries {
-		balance += e.Receive - e.Pay
-	}
+	balance := runningBalance(entries)
 	switch v.Type {
 	case cash.VoucherReceive:
 		balance += v.AmountMinor
@@ -301,7 +328,7 @@ func (s *service) PostVoucher(ctx context.Context, actor, id string) (*cash.Vouc
 	}
 
 	entry := &cash.CashBookEntry{
-		ID:          cashBookEntryID(v.FundID, v.ID),
+		ID:          cash.RowID("cash_book", v.FundID, v.ID),
 		FundID:      v.FundID,
 		EntryDate:   v.RefDate,
 		VoucherDate: v.RefDate,
@@ -318,6 +345,20 @@ func (s *service) PostVoucher(ctx context.Context, actor, id string) (*cash.Vouc
 	}
 	if err := s.repo.AppendCashBookEntry(ctx, entry); err != nil {
 		return nil, err
+	}
+	if err := s.rebuildBalances(ctx, v.FundID); err != nil {
+		return nil, err
+	}
+
+	// Compensate on any failure after the book row is written: delete the
+	// entry and revert the voucher to approved so the two never diverge.
+	rollback := func() {
+		_ = s.repo.DeleteCashBookEntry(ctx, entry.ID)
+		_ = s.rebuildBalances(ctx, v.FundID)
+		v.State = cash.VoucherApproved
+		v.PostedBy = ""
+		v.PostedAt = ""
+		_ = s.repo.UpdateVoucher(ctx, v)
 	}
 
 	v.State = cash.VoucherPosted
@@ -340,27 +381,50 @@ func (s *service) PostVoucher(ctx context.Context, actor, id string) (*cash.Vouc
 		le.Credit = v.AmountMinor
 	}
 	if err := s.ledger.Post(ctx, le); err != nil {
+		rollback()
 		return nil, err
 	}
 
 	if err := s.auditAction(ctx, actor, "voucher.post", v.ID); err != nil {
+		rollback()
 		return nil, err
 	}
 	return v, nil
 }
 
+// runningBalance sums Receive-Pay over book entries in chronological order.
+// The single helper replaces the repeated inline loops in the mutators.
+func runningBalance(entries []*cash.CashBookEntry) int64 {
+	var b int64
+	for _, e := range entries {
+		b += e.Receive - e.Pay
+	}
+	return b
+}
+
+// rebuildBalances re-derives every cash-book running balance for a fund after
+// an entry is appended or removed, so a back-dated post (or a compensated
+// failure) never leaves later rows with stale balances.
+func (s *service) rebuildBalances(ctx context.Context, fundID string) error {
+	entries, err := s.repo.ListCashBook(ctx, fundID, "", "")
+	if err != nil {
+		return err
+	}
+	var balance int64
+	for _, e := range entries {
+		balance += e.Receive - e.Pay
+		if e.Balance != balance {
+			e.Balance = balance
+			if err := s.repo.UpdateCashBookEntry(ctx, e); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (s *service) GetCashBook(ctx context.Context, fundID, from, to string) ([]*cash.CashBookEntry, error) {
 	return s.repo.ListCashBook(ctx, fundID, from, to)
-}
-
-func cashBookEntryID(fundID, voucherID string) string {
-	h := sha256.Sum256([]byte("cash_book\x00" + fundID + "\x00" + voucherID))
-	return hex.EncodeToString(h[:])
-}
-
-func cashCountID(fundID, date string) string {
-	h := sha256.Sum256([]byte("cash_count\x00" + fundID + "\x00" + date))
-	return hex.EncodeToString(h[:])
 }
 
 func (s *service) CloseDay(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error) {
@@ -370,6 +434,94 @@ func (s *service) CloseDay(ctx context.Context, actor, fundID, date string, coun
 	fund, err := s.loadActiveFund(ctx, fundID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Every voucher on or before the close date must already be posted (or
+	// voided/reconciled); a draft or approved voucher would miss the count.
+	vouchers, err := s.repo.ListVouchers(ctx, cash.VoucherFilter{FundID: fundID, To: date})
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range vouchers {
+		if v.State == cash.VoucherDraft || v.State == cash.VoucherApproved {
+			return nil, cash.ErrUnpostedVouchers
+		}
+	}
+
+	count, err := s.createCashCount(ctx, actor, fundID, date, countedAmount, participants)
+	if err != nil {
+		return nil, err
+	}
+	if count.State != cash.CashCountResolved {
+		return count, nil
+	}
+	fund.ClosedDays = append(fund.ClosedDays, date)
+	if err := s.repo.CreateFund(ctx, fund); err != nil {
+		return nil, err
+	}
+	if err := s.auditAction(ctx, actor, "cash.close_day", count.ID); err != nil {
+		return nil, err
+	}
+	return count, nil
+}
+
+// CreateCashCount records a standalone biên bản kiểm kê quỹ. Unlike CloseDay
+// it never closes the day: a matching count is a snapshot, an open one waits
+// for ResolveCashCount to lock the day.
+func (s *service) CreateCashCount(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.createCashCount(ctx, actor, fundID, date, countedAmount, participants)
+}
+
+// ResolveCashCount resolves an open count (UC-4) and then closes the day: the
+// mismatch is recorded, signed off via the resolution text, and the fund's
+// closed-day set is extended so later posts are blocked.
+func (s *service) ResolveCashCount(ctx context.Context, actor, id, resolution string) (*cash.CashCount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	c, err := s.repo.GetCashCount(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, cash.ErrNotFound
+		}
+		return nil, err
+	}
+	if c.State != cash.CashCountOpen {
+		return nil, cash.ErrWrongState
+	}
+	fund, err := s.loadActiveFund(ctx, c.FundID)
+	if err != nil {
+		return nil, err
+	}
+
+	c.State = cash.CashCountResolved
+	c.Resolution = resolution
+	if err := s.repo.CreateCashCount(ctx, c); err != nil {
+		return nil, err
+	}
+	fund.ClosedDays = append(fund.ClosedDays, c.CountDate)
+	if err := s.repo.CreateFund(ctx, fund); err != nil {
+		return nil, err
+	}
+	if err := s.auditAction(ctx, actor, "cash.count.resolve", c.ID); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// createCashCount is the shared count-recording core behind CloseDay and
+// CreateCashCount: validates, computes the book balance, persists the count,
+// and notifies the chief accountant on a mismatch (R7). It never touches the
+// fund's closed-day set — callers decide that.
+func (s *service) createCashCount(ctx context.Context, actor, fundID, date string, countedAmount int64, participants []string) (*cash.CashCount, error) {
+	fund, err := s.loadActiveFund(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+	if countedAmount < 0 {
+		return nil, cash.ErrInvalidCount
 	}
 	for _, d := range fund.ClosedDays {
 		if d == date {
@@ -382,7 +534,7 @@ func (s *service) CloseDay(ctx context.Context, actor, fundID, date string, coun
 		return nil, err
 	}
 	for _, c := range counts {
-		if c.CountDate == date && c.State == "open" {
+		if c.CountDate == date && c.State == cash.CashCountOpen {
 			return nil, cash.ErrOpenCountPending
 		}
 	}
@@ -391,13 +543,10 @@ func (s *service) CloseDay(ctx context.Context, actor, fundID, date string, coun
 	if err != nil {
 		return nil, err
 	}
-	var bookBalance int64
-	for _, e := range entries {
-		bookBalance += e.Receive - e.Pay
-	}
+	bookBalance := runningBalance(entries)
 
 	count := &cash.CashCount{
-		ID:            cashCountID(fundID, date),
+		ID:            cash.RowID("cash_count", fundID, date),
 		FundID:        fundID,
 		CountDate:     date,
 		BookBalance:   bookBalance,
@@ -405,32 +554,27 @@ func (s *service) CloseDay(ctx context.Context, actor, fundID, date string, coun
 		Difference:    bookBalance - countedAmount,
 		Participants:  participants,
 	}
+	if countedAmount == bookBalance {
+		count.State = cash.CashCountResolved
+	} else {
+		count.State = cash.CashCountOpen
+	}
 
-	if countedAmount != bookBalance {
-		count.State = "open"
-		if err := s.repo.CreateCashCount(ctx, count); err != nil {
-			return nil, err
-		}
+	if err := s.repo.CreateCashCount(ctx, count); err != nil {
+		return nil, err
+	}
+	if count.State == cash.CashCountOpen {
 		if err := s.auditAction(ctx, actor, "cash.count.open", count.ID); err != nil {
 			return nil, err
 		}
 		if err := s.notifier.Notify(ctx, "chief_accountant",
 			"Chênh lệch quỹ "+date,
-			"Sổ quỹ "+formatMoney(bookBalance)+", kiểm kê "+formatMoney(countedAmount)); err != nil {
+			"Sổ quỹ "+cash.FormatVNDMinor(bookBalance)+", kiểm kê "+cash.FormatVNDMinor(countedAmount)); err != nil {
 			return nil, err
 		}
 		return count, nil
 	}
-
-	count.State = "resolved"
-	if err := s.repo.CreateCashCount(ctx, count); err != nil {
-		return nil, err
-	}
-	fund.ClosedDays = append(fund.ClosedDays, date)
-	if err := s.repo.CreateFund(ctx, fund); err != nil {
-		return nil, err
-	}
-	if err := s.auditAction(ctx, actor, "cash.close_day", count.ID); err != nil {
+	if err := s.auditAction(ctx, actor, "cash.count", count.ID); err != nil {
 		return nil, err
 	}
 	return count, nil
@@ -440,14 +584,22 @@ func (s *service) ListCashCounts(ctx context.Context, fundID string) ([]*cash.Ca
 	return s.repo.ListCashCounts(ctx, fundID)
 }
 
-func cashReconID(fundID, period string) string {
-	h := sha256.Sum256([]byte("cash_recon\x00" + fundID + "\x00" + period))
-	return hex.EncodeToString(h[:])
+func (s *service) GetCashCount(ctx context.Context, id string) (*cash.CashCount, error) {
+	return s.repo.GetCashCount(ctx, id)
 }
 
-func (s *service) ReconcileMonth(ctx context.Context, actor, fundID, period string, accountantBalance int64) (*cash.Reconciliation, error) {
+// ReconcileMonth runs the month-end reconciliation (UC-5). signers carries the
+// three electronic signatories — thủ quỹ, kế toán, kế toán trưởng — who must
+// be distinct and non-empty; all three sign the biên bản regardless of whether
+// the balances match.
+func (s *service) ReconcileMonth(ctx context.Context, actor, fundID, period string, accountantBalance int64, signers []string) (*cash.Reconciliation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if len(signers) != 3 || signers[0] == "" || signers[1] == "" || signers[2] == "" ||
+		signers[0] == signers[1] || signers[1] == signers[2] || signers[0] == signers[2] {
+		return nil, cash.ErrInvalidSigners
+	}
 
 	fund, err := s.loadActiveFund(ctx, fundID)
 	if err != nil {
@@ -459,7 +611,7 @@ func (s *service) ReconcileMonth(ctx context.Context, actor, fundID, period stri
 		return nil, err
 	}
 	for _, c := range counts {
-		if c.State == "open" {
+		if c.State == cash.CashCountOpen {
 			return nil, cash.ErrOpenCountPending
 		}
 	}
@@ -468,23 +620,21 @@ func (s *service) ReconcileMonth(ctx context.Context, actor, fundID, period stri
 	if err != nil {
 		return nil, err
 	}
-	var cashierBalance int64
-	for _, e := range entries {
-		cashierBalance += e.Receive - e.Pay
-	}
+	cashierBalance := runningBalance(entries)
 
 	rec := &cash.Reconciliation{
-		ID:                cashReconID(fundID, period),
+		ID:                cash.RowID("cash_recon", fundID, period),
 		FundID:            fundID,
 		Period:            period,
 		CashierBalance:    cashierBalance,
 		AccountantBalance: accountantBalance,
 		Difference:        cashierBalance - accountantBalance,
+		SignedBy:          signers,
 		CreatedAt:         s.now().UTC().Format(time.RFC3339),
 	}
 
 	if rec.Difference != 0 {
-		rec.State = "diff"
+		rec.State = cash.ReconciliationDiff
 		if err := s.repo.CreateReconciliation(ctx, rec); err != nil {
 			return nil, err
 		}
@@ -494,8 +644,7 @@ func (s *service) ReconcileMonth(ctx context.Context, actor, fundID, period stri
 		return rec, nil
 	}
 
-	rec.State = "resolved"
-	rec.SignedBy = []string{actor}
+	rec.State = cash.ReconciliationResolved
 
 	fund.ClosedPeriods = append(fund.ClosedPeriods, period)
 	if err := s.repo.CreateFund(ctx, fund); err != nil {
@@ -527,6 +676,10 @@ func (s *service) ReconcileMonth(ctx context.Context, actor, fundID, period stri
 
 func (s *service) ListReconciliations(ctx context.Context, fundID string) ([]*cash.Reconciliation, error) {
 	return s.repo.ListReconciliations(ctx, fundID)
+}
+
+func (s *service) GetReconciliation(ctx context.Context, id string) (*cash.Reconciliation, error) {
+	return s.repo.GetReconciliation(ctx, id)
 }
 
 func oppositeType(t cash.VoucherType) cash.VoucherType {
@@ -574,13 +727,10 @@ func (s *service) postReversal(ctx context.Context, rev *cash.Voucher) error {
 	if err != nil {
 		return err
 	}
-	var balance int64
-	for _, e := range entries {
-		balance += e.Receive - e.Pay
-	}
+	balance := runningBalance(entries)
 
 	entry := &cash.CashBookEntry{
-		ID:          cashBookEntryID(rev.FundID, rev.ID),
+		ID:          cash.RowID("cash_book", rev.FundID, rev.ID),
 		FundID:      rev.FundID,
 		EntryDate:   rev.RefDate,
 		VoucherDate: rev.RefDate,
@@ -601,7 +751,10 @@ func (s *service) postReversal(ctx context.Context, rev *cash.Voucher) error {
 		balance -= rev.AmountMinor
 	}
 	entry.Balance = balance
-	return s.repo.AppendCashBookEntry(ctx, entry)
+	if err := s.repo.AppendCashBookEntry(ctx, entry); err != nil {
+		return err
+	}
+	return s.rebuildBalances(ctx, rev.FundID)
 }
 
 func (s *service) VoidVoucher(ctx context.Context, actor, id, reason string) (*cash.Voucher, error) {
@@ -642,7 +795,17 @@ func (s *service) markVoided(ctx context.Context, actor string, v *cash.Voucher,
 // voidPosted voids a posted/reconciled voucher via an offsetting reversal
 // (Điều 30): a reversal draft linked to the voucher is reused if present
 // (amount must match, E2), otherwise one is created and posted internally.
+// The chief accountant's approval is required (Điều 30) via the VoidApprover
+// seam; main.go wires a Casbin-backed implementation.
 func (s *service) voidPosted(ctx context.Context, actor string, v *cash.Voucher, reason string) (*cash.Voucher, error) {
+	ok, err := s.voidApprover.CanApproveVoid(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, cash.ErrUnauthorizedActor
+	}
+
 	vouchers, err := s.repo.ListVouchers(ctx, cash.VoucherFilter{FundID: v.FundID})
 	if err != nil {
 		return nil, err
@@ -699,21 +862,6 @@ func (s *service) voidPosted(ctx context.Context, actor string, v *cash.Voucher,
 
 	v.RefVouchers = append(v.RefVouchers, reversal.ID)
 	return s.markVoided(ctx, actor, v, reason)
-}
-
-func formatMoney(v int64) string {
-	neg := v < 0
-	if neg {
-		v = -v
-	}
-	s := fmt.Sprintf("%d", v)
-	for i := len(s) - 3; i > 0; i -= 3 {
-		s = s[:i] + "," + s[i:]
-	}
-	if neg {
-		return "-" + s
-	}
-	return s
 }
 
 func (s *service) GetVoucher(ctx context.Context, id string) (*cash.Voucher, error) {

@@ -2,6 +2,8 @@ package cash
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 )
 
 type VoucherType string
@@ -60,17 +62,24 @@ type VoucherLine struct {
 }
 
 // Fund = a cash balance per currency (quỹ). BR6: one fund per currency.
-// ClosedDays holds yyyy-mm-dd dates on which posting is blocked (BR8);
-// ClosedPeriods holds closed yyyy-mm accounting periods (BR9).
+// Code is the stable business code (e.g. "QTM-VND"); OpeningBalanceMinor is
+// the opening balance in minor units carried into the fund; FXRate applies to
+// foreign-currency funds; Cashiers lists the cashier user codes responsible
+// for the fund. ClosedDays holds yyyy-mm-dd dates on which posting is blocked
+// (BR8); ClosedPeriods holds closed yyyy-mm accounting periods (BR9).
 type Fund struct {
-	ID            string   `json:"id"`
-	Name          string   `json:"name"`
-	Currency      string   `json:"currency"`
-	Account       string   `json:"account"`
-	Description   string   `json:"description,omitempty"`
-	IsActive      bool     `json:"is_active"`
-	ClosedDays    []string `json:"closed_days,omitempty"`
-	ClosedPeriods []string `json:"closed_periods,omitempty"`
+	ID                  string   `json:"id"`
+	Code                string   `json:"code,omitempty"`
+	Name                string   `json:"name"`
+	Currency            string   `json:"currency"`
+	Account             string   `json:"account"`
+	OpeningBalanceMinor int64    `json:"opening_balance_minor,omitempty"`
+	FXRate              float64  `json:"fx_rate,omitempty"`
+	Cashiers            []string `json:"cashiers,omitempty"`
+	Description         string   `json:"description,omitempty"`
+	IsActive            bool     `json:"is_active"`
+	ClosedDays          []string `json:"closed_days,omitempty"`
+	ClosedPeriods       []string `json:"closed_periods,omitempty"`
 }
 
 // CashBookEntry = row of Sổ quỹ tiền mặt (S07-DN).
@@ -88,30 +97,47 @@ type CashBookEntry struct {
 	Reconciled  bool        `json:"reconciled,omitempty"`
 }
 
+// CashCountState = trạng thái biên bản kiểm kê quỹ.
+type CashCountState string
+
+const (
+	CashCountOpen     CashCountState = "open"
+	CashCountResolved CashCountState = "resolved"
+)
+
+// ReconciliationState = trạng thái biên bản đối chiếu quỹ cuối tháng (UC-5).
+type ReconciliationState string
+
+const (
+	ReconciliationDiff     ReconciliationState = "diff"
+	ReconciliationResolved ReconciliationState = "resolved"
+)
+
 // CashCount = biên bản kiểm kê quỹ.
 type CashCount struct {
-	ID            string   `json:"id"`
-	FundID        string   `json:"fund_id"`
-	CountDate     string   `json:"count_date"`
-	BookBalance   int64    `json:"book_balance"`
-	CountedAmount int64    `json:"counted_amount"`
-	Difference    int64    `json:"difference"`
-	Resolution    string   `json:"resolution,omitempty"`
-	Participants  []string `json:"participants"`
-	State         string   `json:"state"`
+	ID            string         `json:"id"`
+	FundID        string         `json:"fund_id"`
+	CountDate     string         `json:"count_date"`
+	BookBalance   int64          `json:"book_balance"`
+	CountedAmount int64          `json:"counted_amount"`
+	Difference    int64          `json:"difference"`
+	Resolution    string         `json:"resolution,omitempty"`
+	Participants  []string       `json:"participants"`
+	State         CashCountState `json:"state"`
 }
 
-// Reconciliation = biên bản đối chiếu quỹ cuối tháng (UC-5).
+// Reconciliation = biên bản đối chiếu quỹ cuối tháng (UC-5). SignedBy holds
+// the three electronic signatories (thủ quỹ, kế toán, kế toán trưởng).
 type Reconciliation struct {
-	ID                string   `json:"id"`
-	FundID            string   `json:"fund_id"`
-	Period            string   `json:"period"`
-	CashierBalance    int64    `json:"cashier_balance"`
-	AccountantBalance int64    `json:"accountant_balance"`
-	Difference        int64    `json:"difference"`
-	State             string   `json:"state"`
-	SignedBy          []string `json:"signed_by,omitempty"`
-	CreatedAt         string   `json:"created_at"`
+	ID                string              `json:"id"`
+	FundID            string              `json:"fund_id"`
+	Period            string              `json:"period"`
+	CashierBalance    int64               `json:"cashier_balance"`
+	AccountantBalance int64               `json:"accountant_balance"`
+	Difference        int64               `json:"difference"`
+	State             ReconciliationState `json:"state"`
+	SignedBy          []string            `json:"signed_by,omitempty"`
+	CreatedAt         string              `json:"created_at"`
 }
 
 type VoucherFilter struct {
@@ -135,11 +161,26 @@ type Repository interface {
 
 	ListCashBook(ctx context.Context, fundID, from, to string) ([]*CashBookEntry, error)
 	AppendCashBookEntry(ctx context.Context, e *CashBookEntry) error
+	DeleteCashBookEntry(ctx context.Context, id string) error
+	UpdateCashBookEntry(ctx context.Context, e *CashBookEntry) error
 
 	CreateCashCount(ctx context.Context, c *CashCount) error
+	GetCashCount(ctx context.Context, id string) (*CashCount, error)
 	ListCashCounts(ctx context.Context, fundID string) ([]*CashCount, error)
 
 	CreateReconciliation(ctx context.Context, r *Reconciliation) error
 	GetReconciliation(ctx context.Context, id string) (*Reconciliation, error)
 	ListReconciliations(ctx context.Context, fundID string) ([]*Reconciliation, error)
+}
+
+// RowID derives a deterministic SHA-256 row id for a document key so that
+// re-saving the same logical document is an upsert (the (id, data) table
+// shape documented in AGENTS.md). All cash-module row ids derive from it.
+func RowID(parts ...string) string {
+	h := sha256.New()
+	for _, p := range parts {
+		h.Write([]byte(p))
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }

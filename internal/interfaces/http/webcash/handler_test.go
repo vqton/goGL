@@ -166,7 +166,7 @@ func TestFundThenFlow(t *testing.T) {
 		"amount_minor":      {"123045067"},
 		"other_account":     {"5111"},
 	}
-	w := doForm(t, r, http.MethodPost, "/cash/vouchers", vals, "cashier01")
+	w := doForm(t, r, http.MethodPost, "/cash/vouchers", vals, "ketoan01")
 	id := redirectID(t, w)
 
 	// Detail page shows the auto-assigned RefNo + VN words.
@@ -226,7 +226,7 @@ func TestCloseDayAndReconcileFromWeb(t *testing.T) {
 		"amount_minor":      {"1000000"},
 		"other_account":     {"5111"},
 	}
-	w := doForm(t, r, http.MethodPost, "/cash/vouchers", vals, "cashier01")
+	w := doForm(t, r, http.MethodPost, "/cash/vouchers", vals, "ketoan01")
 	id := redirectID(t, w)
 	doForm(t, r, http.MethodPost, "/cash/vouchers/"+id+"/approve", url.Values{}, "accountant01")
 	doForm(t, r, http.MethodPost, "/cash/vouchers/"+id+"/post", url.Values{}, "cashier01")
@@ -247,6 +247,9 @@ func TestCloseDayAndReconcileFromWeb(t *testing.T) {
 		"fund_id":            {fund.ID},
 		"period":             {"2026-08"},
 		"accountant_balance": {"1000000"},
+		"signer_cashier":     {"thuquy01"},
+		"signer_accountant":  {"ktt01"},
+		"signer_chief":       {"giamdoc01"},
 	}, "cashier01")
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("reconcile = %d, want 303 (body %s)", w.Code, w.Body.String())
@@ -271,7 +274,7 @@ func TestCSVExport(t *testing.T) {
 		"amount_minor":      {"123045067"},
 		"other_account":     {"5111"},
 	}
-	w := doForm(t, r, http.MethodPost, "/cash/vouchers", vals, "cashier01")
+	w := doForm(t, r, http.MethodPost, "/cash/vouchers", vals, "ketoan01")
 	id := redirectID(t, w)
 	doForm(t, r, http.MethodPost, "/cash/vouchers/"+id+"/approve", url.Values{}, "accountant01")
 	doForm(t, r, http.MethodPost, "/cash/vouchers/"+id+"/post", url.Values{}, "cashier01")

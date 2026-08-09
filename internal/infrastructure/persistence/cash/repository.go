@@ -2,9 +2,7 @@ package cash
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -17,15 +15,6 @@ type sqliteRepository struct {
 
 func NewSqliteRepository(db *sql.DB) cash.Repository {
 	return &sqliteRepository{db: db}
-}
-
-func rowID(parts ...string) string {
-	h := sha256.New()
-	for _, p := range parts {
-		h.Write([]byte(p))
-		h.Write([]byte{0})
-	}
-	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (r *sqliteRepository) upsertDoc(ctx context.Context, table, id string, v any) error {
@@ -147,22 +136,49 @@ func (r *sqliteRepository) ListVouchers(ctx context.Context, f cash.VoucherFilte
 }
 
 func (r *sqliteRepository) NextRefNo(ctx context.Context, fundID, period string, typ cash.VoucherType) (string, error) {
-	id := rowID("cash_sequences", fundID, period, string(typ))
-	data, _ := json.Marshal(map[string]string{
-		"fund_id": fundID, "period": period, "typ": string(typ),
-	})
-	q := `INSERT INTO cash_sequences (id, data, fund_id, period, typ, seq)
-	      VALUES (?, ?, ?, ?, ?, 1)
-	      ON CONFLICT(fund_id, period, typ) DO UPDATE SET seq = seq + 1
-	      RETURNING seq`
+	// Atomic counter over the JSON document. INSERT OR IGNORE seeds the
+	// counter at 0, then UPDATE bumps it and RETURNING hands back the new
+	// value — so the first ref is 000001 and the two statements give the
+	// same answer on first and subsequent use (a single INSERT..ON CONFLICT
+	// ..RETURNING would return 0 on the insert path). Deterministic id =
+	// cash.RowID keeps the seed idempotent across re-creates.
+	id := cash.RowID("cash_sequences", fundID, period, string(typ))
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT OR IGNORE INTO cash_sequences (id, data) VALUES (?, json_object('fund_id', ?, 'period', ?, 'typ', ?, 'seq', 0))`,
+		id, fundID, period, string(typ)); err != nil {
+		return "", err
+	}
 	var seq int64
-	if err := r.db.QueryRowContext(ctx, q, id, string(data), fundID, period, string(typ)).Scan(&seq); err != nil {
+	if err := tx.QueryRowContext(ctx,
+		`UPDATE cash_sequences SET data = json_set(data, '$.seq', json_extract(data, '$.seq') + 1)
+		 WHERE id = ? RETURNING json_extract(data, '$.seq')`, id).Scan(&seq); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s/%s/%06d", typ.RefPrefix(), period, seq), nil
 }
 
 func (r *sqliteRepository) AppendCashBookEntry(ctx context.Context, e *cash.CashBookEntry) error {
+	return r.upsertDoc(ctx, "cash_book", e.ID, e)
+}
+
+// DeleteCashBookEntry removes a cash-book row. Used to compensate a failed
+// post so the book and voucher states stay consistent.
+func (r *sqliteRepository) DeleteCashBookEntry(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM cash_book WHERE id = ?`, id)
+	return err
+}
+
+// UpdateCashBookEntry rewrites a cash-book row, used to re-chain running
+// balances after a back-dated post.
+func (r *sqliteRepository) UpdateCashBookEntry(ctx context.Context, e *cash.CashBookEntry) error {
 	return r.upsertDoc(ctx, "cash_book", e.ID, e)
 }
 
@@ -202,6 +218,14 @@ func (r *sqliteRepository) ListCashBook(ctx context.Context, fundID, from, to st
 
 func (r *sqliteRepository) CreateCashCount(ctx context.Context, c *cash.CashCount) error {
 	return r.upsertDoc(ctx, "cash_counts", c.ID, c)
+}
+
+func (r *sqliteRepository) GetCashCount(ctx context.Context, id string) (*cash.CashCount, error) {
+	var c cash.CashCount
+	if err := r.getDoc(ctx, "cash_counts", id, &c); err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (r *sqliteRepository) ListCashCounts(ctx context.Context, fundID string) ([]*cash.CashCount, error) {
