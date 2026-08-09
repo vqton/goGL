@@ -1,0 +1,61 @@
+{{ define "voucher_detail" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "shell_head" . }}<title>{{ .V.RefNo }} — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "shell_nav" . }}
+<main class="mx-auto max-w-4xl px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-bold tracking-tight">{{ .V.RefNo }}
+      <span class="ml-2 rounded-full px-2.5 py-1 text-xs font-medium {{ stateBadge .V.State }}">{{ stateLabel .V.State }}</span>
+    </h1>
+    <a href="/cash/print/voucher/{{ .V.ID }}" target="_blank" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-100">In phiếu</a>
+  </div>
+  {{ template "shell_flash" .Flash }}
+  <dl class="mt-4 grid gap-x-6 gap-y-2 rounded-xl border border-slate-200 bg-white p-5 text-sm shadow-sm sm:grid-cols-2">
+    <div class="flex justify-between"><dt class="text-slate-500">Ngày</dt><dd class="font-medium">{{ .V.RefDate }}</dd></div>
+    <div class="flex justify-between"><dt class="text-slate-500">Loại</dt><dd class="font-medium">{{ if eq .V.Type "receive" }}Phiếu thu (01-TT){{ else }}Phiếu chi (02-TT){{ end }}</dd></div>
+    <div class="flex justify-between"><dt class="text-slate-500">Quỹ</dt><dd class="font-medium">{{ .Fund.Name }} ({{ .V.Currency }})</dd></div>
+    <div class="flex justify-between"><dt class="text-slate-500">Đối tượng</dt><dd class="font-medium">{{ .V.CounterpartyName }}</dd></div>
+    <div class="flex justify-between sm:col-span-2"><dt class="text-slate-500">Diễn giải</dt><dd class="font-medium">{{ .V.Description }}</dd></div>
+    <div class="flex justify-between"><dt class="text-slate-500">Số tiền</dt><dd class="font-medium"><b>{{ money .V.AmountMinor }}</b> {{ .V.Currency }}</dd></div>
+    <div class="flex justify-between"><dt class="text-slate-500">Người lập</dt><dd class="font-medium">{{ .V.CreatedBy }}</dd></div>
+    {{ if .V.ApprovedBy }}<div class="flex justify-between"><dt class="text-slate-500">Duyệt bởi</dt><dd class="font-medium">{{ .V.ApprovedBy }}</dd></div>{{ end }}
+    {{ if .V.PostedBy }}<div class="flex justify-between"><dt class="text-slate-500">Ghi sổ bởi</dt><dd class="font-medium">{{ .V.PostedBy }}</dd></div>{{ end }}
+    {{ if .V.VoidReason }}<div class="flex justify-between sm:col-span-2"><dt class="text-slate-500">Lý do hủy</dt><dd class="font-medium text-red-600">{{ .V.VoidReason }}</dd></div>{{ end }}
+  </dl>
+  <h2 class="mt-6 text-sm font-semibold uppercase tracking-wider text-slate-500">Hạch toán</h2>
+  <table class="mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm shadow-sm">
+    <thead class="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+      <tr><th class="px-4 py-2">Nợ</th><th class="px-4 py-2">Có</th><th class="px-4 py-2 text-right">Số tiền</th></tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{ range .V.Lines }}
+      <tr>
+        <td class="px-4 py-2 font-mono text-xs">{{ .DebitAcc }}</td>
+        <td class="px-4 py-2 font-mono text-xs">{{ .CreditAcc }}</td>
+        <td class="px-4 py-2 text-right font-medium">{{ money .AmountMinor }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  <p class="mt-3 text-sm text-slate-500">Số tiền bằng chữ: <em>{{ .V.AmountWords }}</em></p>
+  <div class="mt-6 flex flex-wrap gap-3">
+    {{ if eq .V.State "draft" }}
+    <form method="post" action="/cash/vouchers/{{ .V.ID }}/approve">
+      <button class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Duyệt phiếu</button>
+    </form>
+    {{ end }}
+    {{ if eq .V.State "approved" }}
+    <form method="post" action="/cash/vouchers/{{ .V.ID }}/post">
+      <button class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">Ghi sổ</button>
+    </form>
+    {{ end }}
+    {{ if or (eq .V.State "draft") (eq .V.State "approved") (eq .V.State "posted") }}
+    <form method="post" action="/cash/vouchers/{{ .V.ID }}/void" class="flex items-center gap-2">
+      <input type="text" name="reason" placeholder="Lý do hủy (bắt buộc)" required class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+      <button class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Hủy phiếu</button>
+    </form>
+    {{ end }}
+  </div>
+</main>
+</body></html>{{ end }}

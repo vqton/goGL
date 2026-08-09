@@ -1,0 +1,70 @@
+{{ define "vouchers" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "shell_head" . }}<title>Phiếu thu/chi — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "shell_nav" . }}
+<main class="mx-auto max-w-6xl px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-bold tracking-tight">Phiếu thu / phiếu chi</h1>
+    <a href="/cash/vouchers/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">+ Phiếu mới</a>
+  </div>
+  {{ template "shell_flash" .Flash }}
+  <form method="get" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-500">Quỹ</span>
+      <select name="fund_id" class="rounded-lg border border-slate-300 px-3 py-1.5">
+        <option value="">Tất cả quỹ</option>
+        {{ range .Funds }}<option value="{{ .ID }}" {{ if eq $.Filter.FundID .ID }}selected{{ end }}>{{ .Name }}</option>{{ end }}
+      </select>
+    </label>
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-500">Loại</span>
+      <select name="type" class="rounded-lg border border-slate-300 px-3 py-1.5">
+        <option value="">Tất cả</option>
+        <option value="receive" {{ if eq $.Filter.Type "receive" }}selected{{ end }}>Phiếu thu</option>
+        <option value="pay" {{ if eq $.Filter.Type "pay" }}selected{{ end }}>Phiếu chi</option>
+      </select>
+    </label>
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-500">Trạng thái</span>
+      <select name="state" class="rounded-lg border border-slate-300 px-3 py-1.5">
+        <option value="">Tất cả</option>
+        <option value="draft" {{ if eq $.Filter.State "draft" }}selected{{ end }}>Nháp</option>
+        <option value="approved" {{ if eq $.Filter.State "approved" }}selected{{ end }}>Đã duyệt</option>
+        <option value="posted" {{ if eq $.Filter.State "posted" }}selected{{ end }}>Đã ghi sổ</option>
+        <option value="reconciled" {{ if eq $.Filter.State "reconciled" }}selected{{ end }}>Đã đối chiếu</option>
+        <option value="voided" {{ if eq $.Filter.State "voided" }}selected{{ end }}>Đã hủy</option>
+      </select>
+    </label>
+    <button class="rounded-lg border border-slate-300 bg-white px-4 py-1.5 hover:bg-slate-100">Lọc</button>
+  </form>
+  <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="w-full text-sm">
+      <thead class="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Số phiếu</th>
+          <th class="px-4 py-3">Ngày</th>
+          <th class="px-4 py-3">Loại</th>
+          <th class="px-4 py-3">Đối tượng</th>
+          <th class="px-4 py-3">Diễn giải</th>
+          <th class="px-4 py-3 text-right">Số tiền</th>
+          <th class="px-4 py-3">Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {{ range .Vouchers }}
+        <tr class="hover:bg-slate-50">
+          <td class="px-4 py-2.5"><a href="/cash/vouchers/{{ .ID }}" class="font-medium text-indigo-600 hover:underline">{{ .RefNo }}</a></td>
+          <td class="px-4 py-2.5">{{ .RefDate }}</td>
+          <td class="px-4 py-2.5">{{ if eq .Type "receive" }}Thu{{ else }}Chi{{ end }}</td>
+          <td class="px-4 py-2.5">{{ .CounterpartyName }}</td>
+          <td class="px-4 py-2.5 text-slate-600">{{ .Description }}</td>
+          <td class="px-4 py-2.5 text-right font-medium">{{ money .AmountMinor }}</td>
+          <td class="px-4 py-2.5"><span class="rounded-full px-2 py-0.5 text-xs font-medium {{ stateBadge .State }}">{{ stateLabel .State }}</span></td>
+        </tr>
+        {{ else }}<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Không có phiếu nào.</td></tr>{{ end }}
+      </tbody>
+    </table>
+  </div>
+</main>
+</body></html>{{ end }}

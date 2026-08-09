@@ -1,0 +1,36 @@
+{{ define "close_day" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "shell_head" . }}<title>Khóa sổ / kiểm kê quỹ — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "shell_nav" . }}
+<main class="mx-auto max-w-2xl px-4 py-8">
+  <h1 class="text-2xl font-bold tracking-tight">Khóa sổ ngày / Kiểm kê quỹ</h1>
+  <p class="mt-1 text-sm text-slate-500">Nhập số tiền đếm thực tế; hệ thống so với số dư sổ quỹ và ghi phiếu kiểm kê.</p>
+  {{ template "shell_flash" .Flash }}
+  <form method="post" action="/cash/close-day" class="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <label class="block text-sm">
+      <span class="mb-1 block font-medium text-slate-700">Quỹ</span>
+      <select name="fund_id" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        {{ range .Funds }}<option value="{{ .ID }}">{{ .Name }} ({{ .Currency }})</option>{{ end }}
+      </select>
+    </label>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Ngày khóa sổ</span>
+        <input type="date" name="count_date" value="{{ .Today }}" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Số tiền kiểm kê thực tế</span>
+        <input type="number" name="counted_amount" min="0" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+    </div>
+    <label class="block text-sm">
+      <span class="mb-1 block font-medium text-slate-700">Thành phần tham gia (phân tách bằng dấu phẩy)</span>
+      <input type="text" name="participants" placeholder="VD: thuquy01, ktt01" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+    </label>
+    <div class="flex justify-end">
+      <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Khóa sổ</button>
+    </div>
+  </form>
+</main>
+</body></html>{{ end }}

@@ -1,9 +1,12 @@
 package web
 
 import (
+	"html/template"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	httpcashweb "goGL/internal/interfaces/http/webcash"
 )
 
 type Handler struct{}
@@ -43,7 +46,9 @@ var modules = []module{
 }
 
 func (h *Handler) Register(r *gin.Engine) {
-	r.LoadHTMLGlob("web/templates/*.html")
+	tmpl := template.Must(template.New("").Funcs(httpcashweb.Funcs()).ParseGlob("web/templates/*.html"))
+	template.Must(tmpl.ParseGlob("web/templates/cash/*.html"))
+	r.SetHTMLTemplate(tmpl)
 	r.Static("/static", "web/static")
 	r.GET("/", h.index)
 }

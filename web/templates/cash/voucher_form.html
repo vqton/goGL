@@ -1,0 +1,63 @@
+{{ define "voucher_form" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "shell_head" . }}<title>Phiếu mới — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "shell_nav" . }}
+<main class="mx-auto max-w-2xl px-4 py-8">
+  <h1 class="text-2xl font-bold tracking-tight">Phiếu thu / chi mới</h1>
+  {{ template "shell_flash" .Flash }}
+  <form method="post" action="/cash/vouchers" class="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Loại phiếu</span>
+        <select name="type" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+          <option value="receive">Phiếu thu (01-TT)</option>
+          <option value="pay">Phiếu chi (02-TT)</option>
+        </select>
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Quỹ</span>
+        <select name="fund_id" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+          {{ range .Funds }}<option value="{{ .ID }}">{{ .Name }} ({{ .Currency }} · TK {{ .Account }})</option>{{ end }}
+        </select>
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Ngày chứng từ</span>
+        <input type="date" name="ref_date" value="{{ .Today }}" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Đối tượng (người nộp / nhận)</span>
+        <input type="text" name="counterparty_name" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+    </div>
+    <label class="block text-sm">
+      <span class="mb-1 block font-medium text-slate-700">Diễn giải</span>
+      <input type="text" name="description" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+    </label>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Số tiền (đơn vị nhỏ nhất, VD: 1000000 = 1.000.000đ)</span>
+        <input type="number" name="amount_minor" min="1" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Tài khoản đối ứng (khác quỹ)</span>
+        <input type="text" name="other_account" placeholder="VD: 5111 (thu) / 642 (chi)" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Mã đối tượng (tùy chọn)</span>
+        <input type="text" name="counterparty_id" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Người nhận tiền (tùy chọn, phiếu chi)</span>
+        <input type="text" name="receiver_name" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+    </div>
+    <p class="text-xs text-slate-500">Tài khoản quỹ được lấy tự động từ quỹ đã chọn; phiếu 2 dòng (quỹ + đối ứng).</p>
+    <div class="flex justify-end">
+      <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Lưu phiếu</button>
+    </div>
+  </form>
+</main>
+</body></html>{{ end }}

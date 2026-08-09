@@ -1,0 +1,55 @@
+{{ define "book" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "shell_head" . }}<title>Sổ quỹ tiền mặt — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "shell_nav" . }}
+<main class="mx-auto max-w-6xl px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-bold tracking-tight">Sổ quỹ tiền mặt (S07-DN)</h1>
+    <a href="/cash/print/s07?fund_id={{ .FundID }}&from={{ .From }}&to={{ .To }}" target="_blank" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-100">In S07-DN</a>
+  </div>
+  <form method="get" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-500">Quỹ</span>
+      <select name="fund_id" class="rounded-lg border border-slate-300 px-3 py-1.5">
+        {{ range .Funds }}<option value="{{ .ID }}" {{ if eq $.FundID .ID }}selected{{ end }}>{{ .Name }}</option>{{ end }}
+      </select>
+    </label>
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-500">Từ ngày</span>
+      <input type="date" name="from" value="{{ .From }}" class="rounded-lg border border-slate-300 px-3 py-1.5">
+    </label>
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-500">Đến ngày</span>
+      <input type="date" name="to" value="{{ .To }}" class="rounded-lg border border-slate-300 px-3 py-1.5">
+    </label>
+    <button class="rounded-lg border border-slate-300 bg-white px-4 py-1.5 hover:bg-slate-100">Xem</button>
+  </form>
+  <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="w-full text-sm">
+      <thead class="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Ngày CT</th>
+          <th class="px-4 py-3">Số hiệu</th>
+          <th class="px-4 py-3">Diễn giải</th>
+          <th class="px-4 py-3 text-right">Thu</th>
+          <th class="px-4 py-3 text-right">Chi</th>
+          <th class="px-4 py-3 text-right">Tồn</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {{ range .Entries }}
+        <tr class="hover:bg-slate-50">
+          <td class="px-4 py-2.5">{{ .VoucherDate }}</td>
+          <td class="px-4 py-2.5 font-medium">{{ .RefNo }}</td>
+          <td class="px-4 py-2.5 text-slate-600">{{ .Description }}</td>
+          <td class="px-4 py-2.5 text-right">{{ money .Receive }}</td>
+          <td class="px-4 py-2.5 text-right">{{ money .Pay }}</td>
+          <td class="px-4 py-2.5 text-right font-medium">{{ money .Balance }}</td>
+        </tr>
+        {{ else }}<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Chưa có phát sinh. Ghi sổ phiếu để thấy dòng đầu tiên.</td></tr>{{ end }}
+      </tbody>
+    </table>
+  </div>
+</main>
+</body></html>{{ end }}

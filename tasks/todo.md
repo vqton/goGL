@@ -33,8 +33,8 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 
 ## Phase 4 — Reports, templates, UX
 ^- [x] T4.1 Print templates (01-TT, 02-TT, S07-DN, S07a-DN, biên bản). Accept: render per `05-ui §7`. Verify: golden strings.
-- [ ] T4.2 Web pages (dashboard, voucher forms, queue, sổ, khóa sổ, đối chiếu). Accept: walkthrough of full month. Verify: manual + browser-qa.
-- [ ] T4.3 Tailwind + VN formatting + amount-in-words + i18n. Verify: visual check; number tests.
+- [x] T4.2 Web pages (dashboard, voucher forms, queue, sổ, khóa sổ, đối chiếu). Accept: walkthrough of full month. Verify: manual + browser-qa.
+- [x] T4.3 Tailwind + VN formatting + amount-in-words + i18n. Verify: visual check; number tests.
 - [ ] T4.4 CSV export + UX polish. Verify: export correctness.
 ^- [x] T4.5 Golden S07-DN fixture test. Verify: `go test` includes fixture.
 

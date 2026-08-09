@@ -1,0 +1,27 @@
+{{ define "shell_head" }}<meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/css/app.css">{{ end }}
+
+{{ define "shell_nav" }}
+<nav class="border-b border-slate-200 bg-white">
+  <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3">
+    <a href="/cash" class="flex items-center gap-2">
+      <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white">G</span>
+      <span class="text-lg font-semibold tracking-tight">Quỹ tiền mặt</span>
+    </a>
+    <div class="flex flex-wrap gap-2 text-sm">
+      <a href="/cash/vouchers" class="rounded-lg px-3 py-1.5 hover:bg-slate-100">Phiếu thu/chi</a>
+      <a href="/cash/vouchers/new" class="rounded-lg bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-700">+ Phiếu mới</a>
+      <a href="/cash/book" class="rounded-lg px-3 py-1.5 hover:bg-slate-100">Sổ quỹ</a>
+      <a href="/cash/close-day" class="rounded-lg px-3 py-1.5 hover:bg-slate-100">Khóa sổ</a>
+      <a href="/cash/reconcile" class="rounded-lg px-3 py-1.5 hover:bg-slate-100">Đối chiếu</a>
+      <a href="/" class="rounded-lg px-3 py-1.5 text-slate-400 hover:bg-slate-100">Home</a>
+    </div>
+  </div>
+</nav>
+{{ end }}
+
+{{ define "shell_flash" }}
+{{ if .Err }}<div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{{ .Err }}</div>{{ end }}
+{{ if .Ok }}<div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{{ .Ok }}</div>{{ end }}
+{{ end }}

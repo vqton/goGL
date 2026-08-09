@@ -83,6 +83,7 @@ import (
 	httptools "goGL/internal/interfaces/http/tools"
 	httpuser "goGL/internal/interfaces/http/user"
 	httpweb "goGL/internal/interfaces/http/web"
+	httpcashweb "goGL/internal/interfaces/http/webcash"
 )
 
 func main() {
@@ -111,6 +112,12 @@ func main() {
 	httpweb.NewHandler().Register(r)
 	v1 := r.Group("/api/v1")
 
+	cashSvc := cash.NewService(
+		perscash.NewSqliteRepository(sqlDB),
+		audit.NewService(persaudit.NewSqliteRepository(sqlDB)),
+	)
+	httpcashweb.NewHandler(cashSvc, cfg.Authorization.IdentityHeader).Register(r)
+
 	if cfg.Authorization.Enabled {
 		v1.Use(authorization.AuthorizationMiddleware(
 			authzEnforcer,
@@ -118,7 +125,7 @@ func main() {
 		))
 	}
 
-	httpcash.NewHandler(cash.NewService(perscash.NewSqliteRepository(sqlDB), audit.NewService(persaudit.NewSqliteRepository(sqlDB))), cfg.Authorization.IdentityHeader).Register(v1)
+	httpcash.NewHandler(cashSvc, cfg.Authorization.IdentityHeader).Register(v1)
 	httpbank.NewHandler(bank.NewService(persbank.NewSqliteRepository(sqlDB))).Register(v1)
 	httppurchase.NewHandler(purchase.NewService(perspurchase.NewSqliteRepository(sqlDB))).Register(v1)
 	httpsales.NewHandler(sales.NewService(perssales.NewSqliteRepository(sqlDB))).Register(v1)
