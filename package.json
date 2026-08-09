@@ -1,0 +1,12 @@
+{
+  "name": "gogl-web",
+  "private": true,
+  "description": "TailwindCSS build for the goGL ERP front-end (Go html/templates).",
+  "scripts": {
+    "build:css": "tailwindcss -i ./web/css/input.css -o ./web/static/css/app.css --minify",
+    "watch:css": "tailwindcss -i ./web/css/input.css -o ./web/static/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.0"
+  }
+}

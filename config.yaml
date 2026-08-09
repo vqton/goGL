@@ -1,0 +1,9 @@
+server:
+  http_addr: ":8080"
+
+database:
+  dsn: "gogl.db"
+
+authorization:
+  enabled: true
+  identity_header: "X-User-Id"
