@@ -32,11 +32,11 @@ Source: `docs/cashier/06-roadmap.md`. Conventions: acceptance criteria + verific
 - [x] T3.4 UC-5/UC-6 error-path tests. Verify: `go test ./...`.
 
 ## Phase 4 — Reports, templates, UX
-^- [x] T4.1 Print templates (01-TT, 02-TT, S07-DN, S07a-DN, biên bản). Accept: render per `05-ui §7`. Verify: golden strings.
+- [x] T4.1 Print templates (01-TT, 02-TT, S07-DN, S07a-DN, biên bản). Accept: render per `05-ui §7`. Verify: golden strings.
 - [x] T4.2 Web pages (dashboard, voucher forms, queue, sổ, khóa sổ, đối chiếu). Accept: walkthrough of full month. Verify: manual + browser-qa.
 - [x] T4.3 Tailwind + VN formatting + amount-in-words + i18n. Verify: visual check; number tests.
 - [x] T4.4 CSV export + UX polish. Verify: export correctness.
-^- [x] T4.5 Golden S07-DN fixture test. Verify: `go test` includes fixture.
+- [x] T4.5 Golden S07-DN fixture test. Verify: `go test` includes fixture.
 
 ## Phase 5 — Hardening
 - [x] T5.1 Concurrency/idempotency soak. Accept: no duplicate entries under parallel post. Verify: race test.
