@@ -341,3 +341,60 @@ func TestVoidFromWeb(t *testing.T) {
 		t.Errorf("voided detail should show Đã hủy badge")
 	}
 }
+
+func TestMutatingRoutes_RejectAnonymous(t *testing.T) {
+	sqlDB := openDB(t)
+	svc := appcash.NewService(perscash.NewSqliteRepository(sqlDB), noopAuditor{})
+	r := buildRouter(t, svc)
+	fund := seedFund(t, svc)
+
+	// Every state-changing route must fail closed without X-User-Id (T5.2):
+	// the web UI sits outside the /api/v1 Casbin middleware, so it enforces
+	// the identity seam itself.
+	create := func() string {
+		v := &domaincash.Voucher{
+			Type: domaincash.VoucherReceive, FundID: fund.ID, RefDate: "2026-08-25",
+			Currency: "VND", AmountMinor: 1000000,
+			CounterpartyName: "Nguyễn Văn A", Description: "Thu tiền",
+			Lines: []domaincash.VoucherLine{
+				{Seq: 1, DebitAcc: "1111", AmountMinor: 1000000},
+				{Seq: 2, CreditAcc: "5111", AmountMinor: 1000000},
+			},
+		}
+		if err := svc.CreateVoucher(context.Background(), "cashier01", v); err != nil {
+			t.Fatalf("seed voucher: %v", err)
+		}
+		return v.ID
+	}
+	id := create()
+
+	cases := []struct {
+		name string
+		path string
+		vals url.Values
+	}{
+		{"create voucher", "/cash/vouchers", url.Values{"fund_id": {fund.ID}, "type": {"receive"}, "ref_date": {"2026-08-25"}, "counterparty_name": {"A"}, "description": {"x"}, "amount_minor": {"1000000"}, "other_account": {"5111"}}},
+		{"approve", "/cash/vouchers/" + id + "/approve", url.Values{}},
+		{"post", "/cash/vouchers/" + id + "/post", url.Values{}},
+		{"void", "/cash/vouchers/" + id + "/void", url.Values{"reason": {"x"}}},
+		{"close-day", "/cash/close-day", url.Values{"fund_id": {fund.ID}, "count_date": {"2026-08-25"}, "counted_amount": {"0"}, "participants": {""}}},
+		{"reconcile", "/cash/reconcile", url.Values{"fund_id": {fund.ID}, "period": {"2026-08"}, "accountant_balance": {"0"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := doForm(t, r, http.MethodPost, tc.path, tc.vals, "")
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("%s = %d, want 401 (body %s)", tc.name, w.Code, w.Body.String())
+			}
+		})
+	}
+
+	// The voucher must remain untouched: no approve/post/void happened.
+	got, err := svc.GetVoucher(context.Background(), id)
+	if err != nil {
+		t.Fatalf("get voucher: %v", err)
+	}
+	if got.State != domaincash.VoucherDraft {
+		t.Fatalf("state = %s, want draft (anonymous requests must not mutate)", got.State)
+	}
+}

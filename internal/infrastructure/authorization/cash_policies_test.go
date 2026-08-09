@@ -35,7 +35,8 @@ func TestSeedPolicies_CashRoles(t *testing.T) {
 		want bool
 	}{
 		{"cashier posts voucher", "truongquy", "/api/v1/cash/vouchers/v-1/post", "POST", true},
-		{"cashier reads book", "truongquy", "/api/v1/cash/books", "GET", true},
+		{"cashier reads book", "truongquy", "/api/v1/cash/book", "GET", true},
+		{"cashier cannot reach export route", "truongquy", "/api/v1/cash/books", "GET", false},
 		{"cashier closes day", "truongquy", "/api/v1/cash/close-day", "POST", true},
 		{"cashier cannot create voucher", "truongquy", "/api/v1/cash/vouchers", "POST", false},
 		{"accountant creates voucher", "ketoan", "/api/v1/cash/vouchers", "POST", true},

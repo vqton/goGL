@@ -115,7 +115,7 @@ func TestHandler_ListPolicies(t *testing.T) {
 	seeded := [][]string{
 		{"role:admin", "*", "*"},
 		{"role:cashier", "/api/v1/cash/vouchers/*/post", "POST"},
-		{"role:cashier", "/api/v1/cash/books*", "GET"},
+		{"role:cashier", "/api/v1/cash/book", "GET"},
 		{"role:cashier", "/api/v1/cash/close-day", "POST"},
 		{"role:cash_accountant", "/api/v1/cash/vouchers", "*"},
 		{"role:cash_accountant", "/api/v1/cash/vouchers/*", "*"},

@@ -745,6 +745,9 @@ func validateVoucher(v *cash.Voucher, cashAccount string) error {
 	if v.RefDate == "" || len(v.RefDate) < 7 {
 		return errors.New("cash: ref_date is required as yyyy-mm-dd")
 	}
+	if _, err := time.Parse("2006-01-02", v.RefDate); err != nil {
+		return errors.New("cash: ref_date must be yyyy-mm-dd (T5.2)")
+	}
 	if v.AmountMinor <= 0 {
 		return errors.New("cash: amount must be positive")
 	}

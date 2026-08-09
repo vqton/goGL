@@ -70,6 +70,17 @@ func (h *Handler) actor(c *gin.Context) string {
 	return c.GetHeader(h.identityHeader)
 }
 
+// requireActor fails closed when the identity header is absent. The web UI
+// sits outside the /api/v1 Casbin middleware, so its mutating actions must
+// refuse anonymous requests themselves (T5.2).
+func (h *Handler) requireActor(c *gin.Context) bool {
+	if h.actor(c) != "" {
+		return true
+	}
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "missing identity header"}})
+	return false
+}
+
 func money(n int64) string { return appprint.FormatVN(n) }
 
 func stateLabel(s domaincash.VoucherState) string {
@@ -209,6 +220,9 @@ func (h *Handler) newVoucher(c *gin.Context) {
 }
 
 func (h *Handler) createVoucher(c *gin.Context) {
+	if !h.requireActor(c) {
+		return
+	}
 	if err := c.Request.ParseForm(); err != nil {
 		h.fail(c, err)
 		return
@@ -292,6 +306,9 @@ func (h *Handler) voucherDetail(c *gin.Context) {
 }
 
 func (h *Handler) approveVoucher(c *gin.Context) {
+	if !h.requireActor(c) {
+		return
+	}
 	id := c.Param("id")
 	if _, err := h.svc.ApproveVoucher(c.Request.Context(), h.actor(c), id); err != nil {
 		redirectErr(c, "/cash/vouchers/"+id, err.Error())
@@ -301,6 +318,9 @@ func (h *Handler) approveVoucher(c *gin.Context) {
 }
 
 func (h *Handler) postVoucher(c *gin.Context) {
+	if !h.requireActor(c) {
+		return
+	}
 	id := c.Param("id")
 	if _, err := h.svc.PostVoucher(c.Request.Context(), h.actor(c), id); err != nil {
 		redirectErr(c, "/cash/vouchers/"+id, err.Error())
@@ -310,6 +330,9 @@ func (h *Handler) postVoucher(c *gin.Context) {
 }
 
 func (h *Handler) voidVoucher(c *gin.Context) {
+	if !h.requireActor(c) {
+		return
+	}
 	id := c.Param("id")
 	if err := c.Request.ParseForm(); err != nil {
 		h.fail(c, err)
@@ -361,6 +384,9 @@ func (h *Handler) closeDayForm(c *gin.Context) {
 }
 
 func (h *Handler) closeDay(c *gin.Context) {
+	if !h.requireActor(c) {
+		return
+	}
 	if err := c.Request.ParseForm(); err != nil {
 		h.fail(c, err)
 		return
@@ -399,6 +425,9 @@ func (h *Handler) reconcileForm(c *gin.Context) {
 }
 
 func (h *Handler) reconcile(c *gin.Context) {
+	if !h.requireActor(c) {
+		return
+	}
 	if err := c.Request.ParseForm(); err != nil {
 		h.fail(c, err)
 		return

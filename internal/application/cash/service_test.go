@@ -136,6 +136,21 @@ func TestService_CreateVoucher_AssignsRefNoAndWords(t *testing.T) {
 	}
 }
 
+func TestService_CreateVoucher_MalformedRefDate(t *testing.T) {
+	svc, _ := newSvc(t, openSvcDB(t))
+	ctx := context.Background()
+	mustCreateFund(t, svc, "fund-1")
+
+	for _, bad := range []string{"2026-8-5", "2026/08/05", "05-08-2026", "2026-13-01"} {
+		v := validVoucher()
+		v.FundID = "fund-1"
+		v.RefDate = bad
+		if err := svc.CreateVoucher(ctx, "ketoan", v); err == nil {
+			t.Fatalf("ref_date %q: expected validation error (T5.2), got nil", bad)
+		}
+	}
+}
+
 func TestService_CreateVoucher_UnbalancedLines(t *testing.T) {
 	svc, _ := newSvc(t, openSvcDB(t))
 	ctx := context.Background()
