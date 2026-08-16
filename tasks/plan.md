@@ -13,12 +13,13 @@ lists in `tasks/<m>-todo.md`.
   (docs/ledger) — TT 99/2025 statutory forms, sequences, periods, audit.
 - **Implemented, docs as target-state:** masterdata (docs/masterdata,
   vertical in 51eec6b — `SeedAccounts` Phụ lục 2 TT 99/2025, `SetRegime`
-  TT 99↔TT 133, lifecycle, merge, CSV import).
-- **Next vertical: setup (docs/setup)** — first-run gateway: company profile
-  (statutory identity), regime + 12-month fiscal year, COA seed + period open
-  via masterdata/ledger, balanced opening balances (ΣNợ=ΣCó) with per-đối
-  tượng detail, status machine + lock/reopen, CSV import. Plan:
-  `docs/setup/06-roadmap.md`, tasks: `tasks/setup-todo.md`.
+  TT 99↔TT 133, lifecycle, merge, CSV import) and **setup** (docs/setup,
+  vertical in 05d6b4c — company profile + regime + 12-month FY, COA seed +
+  period open via masterdata/ledger seams, balanced opening balances with
+  per-đối tượng detail, status machine + lock/reopen/activate, CSV import,
+  web wizard). Phase 0–2 done, T4.1/T4.4 done; remaining in
+  `tasks/setup-todo.md`: T3.1/T3.2 partials (async import job, accounts
+  preview + audit view), T4.2 perf, T4.3 security doc, Phase 5 pilot.
 - **Still stubs (24 modules total, 20 remain):** audit, backup, bank, budget,
   contract, costing, document, fixedasset, inventory, invoice, options,
   payroll, purchase, reporting, sales, system, task, tax, tools, user.

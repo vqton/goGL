@@ -8,56 +8,76 @@ Dependencies already implemented: masterdata (`SetRegime`, `SeedAccounts`,
 orchestrator — no new infra.
 
 ## Phase 0 — Foundations: status machine & statutory profile (hard gate)
-- [ ] T0.1 Domain: `SetupStatus` enum (EMPTY→ACTIVE), full `CompanyProfile`
+- [x] T0.1 Domain: `SetupStatus` enum (EMPTY→ACTIVE), full `CompanyProfile`
   (R1–R5 fields), `OpeningBalance` (R7 + object detail), extended `Repository`.
   Accept: compiles; `core.Money` reused. Verify: `go build ./...`.
-- [ ] T0.2 Migration: add `setup_status` to `db.Migrate` (single JSON row);
+  → `internal/domain/setup/entity.go` + `errors.go`; `BalanceID` = sha256
+  ("OB\0acct\0obj") hex (idempotent upsert).
+- [x] T0.2 Migration: add `setup_status` to `db.Migrate` (single JSON row);
   use existing `company_profiles` + `opening_balances`. Accept: idempotent.
   Verify: `db.Migrate` twice, no error.
-- [ ] T0.3 Authz: seed setup policies per `02-spec §9` (initialize/lock/reopen/
+  → `migrate.go` table list extended; profile/balances reuse existing tables.
+- [x] T0.3 Authz: seed setup policies per `02-spec §9` (initialize/lock/reopen/
   activate → `ke_toan_truong`+`admin`; balance write/import →
   `ke_toan_tong_hop`; reads open). Accept: enforcement blocks wrong role.
   Verify: authz tests.
-- [ ] T0.4 Service skeleton: `Status()`, `GetProfile()`, status transitions R6
+  → `internal/infrastructure/authorization/setup_policies.go` + tests.
+- [x] T0.4 Service skeleton: `Status()`, `GetProfile()`, status transitions R6
   (monotonic + idempotent), audit seam (R13). Accept: transitions enforced.
   Verify: property test (monotonic, no backward except reopen).
-- [ ] T0.5 HTTP skeleton: `GET /status`, `GET /profile` real; scaffold rest of
+  → `service.go` `Initialize`/`Status`/`audit`; `TestInitializeIdempotentAtBalancesDraft`,
+  `TestStatusViewSteps`.
+- [x] T0.5 HTTP skeleton: `GET /status`, `GET /profile` real; scaffold rest of
   `02-spec §4`. Accept: 501 gone for these. Verify: httptest.
+  → `TestStatus_Empty`, `TestGetProfile_*`.
 
 **Checkpoint:** build/vet/test green.
 
 ## Phase 1 — Initialize orchestration
-- [ ] T1.1 `POST /initialize`: profile validation (R1–R5: MST format+normalize,
+- [x] T1.1 `POST /initialize`: profile validation (R1–R5: MST format+normalize,
   12-month FY, VND, regime whitelist) → save → PROFILED. Accept: invalid MST/FY
   rejected 422. Verify: unit tests.
-- [ ] T1.2 Cross-module seams: `masterdata.SetRegime` → REGIME_SET;
+  → `validateProfile`; `TestInitializeInvalidProfile`; handler 422 tests.
+- [x] T1.2 Cross-module seams: `masterdata.SetRegime` → REGIME_SET;
   `masterdata.SeedAccounts` + Quy chế audit note → ACCOUNTS_SEEDED;
   `ledger.OpenPeriod("YYYY-01".."YYYY-12")` → PERIODS_OPEN. Accept: no private
   COA in setup. Verify: seam mock assertions.
-- [ ] T1.3 Idempotent resume: each step re-checks "already done?" before
+  → structural DI of masterdata/ledger/audit services (main.go + integration test).
+- [x] T1.3 Idempotent resume: each step re-checks "already done?" before
   re-applying; status row is resume point. Accept: crash-resume never
   double-seeds. Verify: property test across all steps (UC-S11).
-- [ ] T1.4 `PUT /profile` while Status < BALANCES_LOCKED. Accept: blocked
+  → `TestInitializeResumesFromProfiled`, `TestInitializeIdempotentAtBalancesDraft`,
+  `TestInitialize_ResumeIdempotent`.
+- [x] T1.4 `PUT /profile` while Status < BALANCES_LOCKED. Accept: blocked
   later. Verify: state-guard test.
-- [ ] T1.5 Concurrent initialize: one wins, others 409. Verify: parallel test
+  → `UpdateProfile` (service.go) + `TestUpdateProfileGuarded`.
+- [x] T1.5 Concurrent initialize: one wins, others 409. Verify: parallel test
   (UC-S13).
+  → Implemented as mutex-serialized + idempotent (stronger than 409): both calls
+  return success, final state `balances_draft`, periods opened exactly once
+  (`TestInitializeConcurrent`). No double-seed under race.
 
 **Checkpoint:** build/vet/test green.
 
 ## Phase 2 — Opening balances: entry + check + lock
-- [ ] T2.1 `POST/GET/DELETE /opening-balances`: upsert by `OB:{account}:
+- [x] T2.1 `POST/GET/DELETE /opening-balances`: upsert by `OB:{account}:
   {object}`; R7 one-side, R8 draft-only, R10 object-required for 131/331/152/
   155/156/211/214 (validated via masterdata `Lookup` ACTIVE). Accept: each rule
   rejects. Verify: unit tests.
-- [ ] T2.2 `POST /opening-balances/check`: Σ Nợ == Σ Có (VND), summary + diff +
+  → `SaveBalance`/`validateBalance` + `TestSaveBalanceRules`/`TestDeleteBalance*`.
+- [x] T2.2 `POST /opening-balances/check`: Σ Nợ == Σ Có (VND), summary + diff +
   offending TK list; 422 on mismatch (R9). Accept: correct totals.
   Verify: property test (ΣNợ=ΣCó invariant — UC-S12).
-- [ ] T2.3 `POST /lock` (ke_toan_truong): re-check → BALANCES_LOCKED + audit;
+  → `check()` + `TestCheckBalancesUnbalanced`, E2E balanced sheet.
+- [x] T2.3 `POST /lock` (ke_toan_truong): re-check → BALANCES_LOCKED + audit;
   `POST /reopen` with reason + posting guard + override (R12); `POST /activate`
   → ACTIVE. Accept: lock blocks edits; reopen needs reason; override audited.
   Verify: state-guard tests.
-- [ ] T2.4 Web pages: wizard step 4 (balances table + live balance banner
+  → `Lock`/`Reopen`/`Activate` + `TestLockReopenActivate`, `TestActivateRequiresLocked`,
+  E2E (incl. posted-voucher reopen guard, reason required → `ErrReopenBlocked`).
+- [x] T2.4 Web pages: wizard step 4 (balances table + live balance banner
   `05-ui §2.5-2.6`), lock/reopen modals (`§2.8`). Verify: browser walkthrough.
+  → `web/templates/setup/balances.html` + websetup tests; smoke-tested live.
 
 **Checkpoint:** build/vet/test green.
 
@@ -66,9 +86,17 @@ orchestrator — no new infra.
   per-row error report, idempotent upsert, batched commit, template version
   rejection, error CSV export. Accept: errors never silently dropped.
   Verify: import tests.
+  → **Partially delivered**: sync `ImportBalances` with dry-run, per-row error
+  report (`RowError`) and idempotent upsert (deterministic `BalanceID`); tests
+  `TestImportBalances` + handler `_DryRun`/`_Commit`/`_InvalidRow422`.
+  **Not yet**: async job persistence (`GET /import/:jobId/report` is a 501
+  placeholder), batched commit, template version rejection, error CSV export.
 - [ ] T3.2 Wizard step 3 (accounts preview via masterdata) + status dashboard
   (`05-ui §2.4, §2.9`) with step checklist, regime badge, ΣNợ/ΣCó, audit view.
   Verify: walkthrough.
+  → **Partially delivered**: `/setup` dashboard with status + step checklist and
+  the balances page (ΣNợ/ΣCó banner). **Not yet**: step-3 accounts preview page
+  and the audit view.
 
 **Checkpoint:** build/vet/test green.
 
