@@ -1,0 +1,126 @@
+{{ define "ledger_entry_form" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "ledger_shell_head" . }}<title>Phiếu kế toán mới — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "ledger_shell_nav" . }}
+<main class="mx-auto max-w-5xl px-4 py-8">
+  <h1 class="text-2xl font-bold tracking-tight">Phiếu kế toán mới</h1>
+  {{ template "ledger_shell_flash" .Flash }}
+  <datalist id="acct-options">
+    {{ range .Accounts }}<option value="{{ .Code }}">{{ .Code }} — {{ .Name }}</option>{{ end }}
+  </datalist>
+  <form method="post" action="/ledger/entries" class="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Ngày chứng từ</span>
+        <input type="date" name="voucher_date" value="{{ .Today }}" required class="w-full rounded-lg border border-slate-300 px-3 py-2">
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700">Nguồn</span>
+        <input type="text" value="MANUAL" disabled class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-500">
+      </label>
+    </div>
+    <label class="block text-sm">
+      <span class="mb-1 block font-medium text-slate-700">Diễn giải</span>
+      <input type="text" name="description" required placeholder="VD: Thu tiền bán hàng theo HĐ 123" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+    </label>
+
+    <div class="overflow-x-auto rounded-lg border border-slate-200">
+      <table class="w-full text-sm" id="lines">
+        <thead class="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-3 py-2">TK Nợ</th>
+            <th class="px-3 py-2">Số tiền Nợ</th>
+            <th class="px-3 py-2">TK Có</th>
+            <th class="px-3 py-2">Số tiền Có</th>
+            <th class="px-3 py-2">Diễn giải dòng</th>
+            <th class="px-3 py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr data-line="1">
+            <td class="px-3 py-1.5"><input type="text" name="account_code" list="acct-options" class="w-28 rounded-lg border border-slate-300 px-2 py-1.5"></td>
+            <td class="px-3 py-1.5"><input type="number" name="debit" min="0" step="1" value="0" class="debit w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-right"></td>
+            <td class="px-3 py-1.5"><input type="text" name="account_code" list="acct-options" class="w-28 rounded-lg border border-slate-300 px-2 py-1.5"></td>
+            <td class="px-3 py-1.5"><input type="number" name="credit" min="0" step="1" value="0" class="credit w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-right"></td>
+            <td class="px-3 py-1.5"><input type="text" name="note" class="w-44 rounded-lg border border-slate-300 px-2 py-1.5"></td>
+            <td class="px-3 py-1.5 text-center"><button type="button" onclick="delLine(this)" class="rounded px-1.5 text-slate-400 hover:text-red-600">✕</button></td>
+          </tr>
+          <tr data-line="1">
+            <td class="px-3 py-1.5"><input type="text" name="account_code" list="acct-options" class="w-28 rounded-lg border border-slate-300 px-2 py-1.5"></td>
+            <td class="px-3 py-1.5"><input type="number" name="debit" min="0" step="1" value="0" class="debit w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-right"></td>
+            <td class="px-3 py-1.5"><input type="text" name="account_code" list="acct-options" class="w-28 rounded-lg border border-slate-300 px-2 py-1.5"></td>
+            <td class="px-3 py-1.5"><input type="number" name="credit" min="0" step="1" value="0" class="credit w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-right"></td>
+            <td class="px-3 py-1.5"><input type="text" name="note" class="w-44 rounded-lg border border-slate-300 px-2 py-1.5"></td>
+            <td class="px-3 py-1.5 text-center"><button type="button" onclick="delLine(this)" class="rounded px-1.5 text-slate-400 hover:text-red-600">✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <button type="button" onclick="addLine()" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100">+ Thêm dòng</button>
+      <div class="flex items-center gap-3">
+        <span id="balance-chip" class="rounded-full px-3 py-1.5 text-sm font-semibold bg-amber-100 text-amber-700">Đang tính…</span>
+        <div class="text-right text-xs text-slate-500">
+          <div>Tổng Nợ: <span id="total-debit" class="font-medium text-slate-700">0</span></div>
+          <div>Tổng Có: <span id="total-credit" class="font-medium text-slate-700">0</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-end gap-2">
+      <button type="submit" name="action" value="save" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-100">Lưu nháp</button>
+      <button type="submit" id="post-btn" name="action" value="post" disabled class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300">Ghi sổ</button>
+    </div>
+  </form>
+</main>
+<script>
+(function () {
+  var table = document.getElementById('lines');
+  var chip = document.getElementById('balance-chip');
+  var postBtn = document.getElementById('post-btn');
+  var totalDebit = document.getElementById('total-debit');
+  var totalCredit = document.getElementById('total-credit');
+
+  function recalc() {
+    var d = 0, c = 0;
+    table.querySelectorAll('tr[data-line]').forEach(function (tr) {
+      d += parseInt(tr.querySelector('.debit').value || '0', 10) || 0;
+      c += parseInt(tr.querySelector('.credit').value || '0', 10) || 0;
+    });
+    totalDebit.textContent = d.toLocaleString('vi-VN');
+    totalCredit.textContent = c.toLocaleString('vi-VN');
+    var diff = d - c;
+    if (diff === 0 && d > 0) {
+      chip.textContent = 'Cân đối ✓';
+      chip.className = 'rounded-full px-3 py-1.5 text-sm font-semibold bg-emerald-100 text-emerald-700';
+      postBtn.disabled = false;
+    } else {
+      chip.textContent = 'Chênh lệch: ' + diff.toLocaleString('vi-VN');
+      chip.className = 'rounded-full px-3 py-1.5 text-sm font-semibold bg-red-100 text-red-700';
+      postBtn.disabled = true;
+    }
+  }
+  window.addLine = function () {
+    var tr = document.createElement('tr');
+    tr.dataset.line = '1';
+    tr.innerHTML =
+      '<td class="px-3 py-1.5"><input type="text" name="account_code" list="acct-options" class="w-28 rounded-lg border border-slate-300 px-2 py-1.5"></td>' +
+      '<td class="px-3 py-1.5"><input type="number" name="debit" min="0" step="1" value="0" class="debit w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-right"></td>' +
+      '<td class="px-3 py-1.5"><input type="text" name="account_code" list="acct-options" class="w-28 rounded-lg border border-slate-300 px-2 py-1.5"></td>' +
+      '<td class="px-3 py-1.5"><input type="number" name="credit" min="0" step="1" value="0" class="credit w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-right"></td>' +
+      '<td class="px-3 py-1.5"><input type="text" name="note" class="w-44 rounded-lg border border-slate-300 px-2 py-1.5"></td>' +
+      '<td class="px-3 py-1.5 text-center"><button type="button" onclick="delLine(this)" class="rounded px-1.5 text-slate-400 hover:text-red-600">✕</button></td>';
+    table.appendChild(tr);
+    recalc();
+  };
+  window.delLine = function (btn) {
+    if (table.querySelectorAll('tr[data-line]').length > 1) {
+      btn.closest('tr').remove();
+      recalc();
+    }
+  };
+  table.addEventListener('input', recalc);
+  recalc();
+})();
+</script>
+</body></html>{{ end }}

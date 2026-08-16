@@ -41,12 +41,12 @@ type checkRequest struct {
 func (h *Handler) listPolicies(c *gin.Context) {
 	p, err := h.e.GetPolicy()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list policies"})
 		return
 	}
 	g, err := h.e.GetGroupingPolicy()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list grouping policies"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"p": p, "g": g})
@@ -73,7 +73,7 @@ func (h *Handler) addPolicy(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add policy"})
 		return
 	}
 	status := http.StatusCreated
@@ -104,7 +104,7 @@ func (h *Handler) removePolicy(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove policy"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"removed": removed})
@@ -118,7 +118,7 @@ func (h *Handler) check(c *gin.Context) {
 	}
 	allowed, err := h.e.Enforce(req.Sub, req.Obj, req.Act)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "enforcement check failed"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"allowed": allowed})

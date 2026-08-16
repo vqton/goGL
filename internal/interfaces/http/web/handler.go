@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	httpcashweb "goGL/internal/interfaces/http/webcash"
+	httpwebledger "goGL/internal/interfaces/http/webledger"
 )
 
 type Handler struct{}
@@ -46,8 +47,9 @@ var modules = []module{
 }
 
 func (h *Handler) Register(r *gin.Engine) {
-	tmpl := template.Must(template.New("").Funcs(httpcashweb.Funcs()).ParseGlob("web/templates/*.html"))
+	tmpl := template.Must(template.New("").Funcs(httpcashweb.Funcs()).Funcs(httpwebledger.Funcs()).ParseGlob("web/templates/*.html"))
 	template.Must(tmpl.ParseGlob("web/templates/cash/*.html"))
+	template.Must(tmpl.ParseGlob("web/templates/ledger/*.html"))
 	r.SetHTMLTemplate(tmpl)
 	r.Static("/static", "web/static")
 	r.GET("/", h.index)

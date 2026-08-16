@@ -86,6 +86,7 @@ import (
 	httpuser "goGL/internal/interfaces/http/user"
 	httpweb "goGL/internal/interfaces/http/web"
 	httpcashweb "goGL/internal/interfaces/http/webcash"
+	httpwebledger "goGL/internal/interfaces/http/webledger"
 )
 
 func main() {
@@ -110,6 +111,13 @@ func main() {
 		log.Fatalf("seed authorization policies: %v", err)
 	}
 
+	ledgerRepo := persledger.NewSqliteRepository(sqlDB)
+	if n, err := ledger.SeedDefaultAccounts(ctx, ledgerRepo); err != nil {
+		log.Fatalf("seed ledger chart of accounts: %v", err)
+	} else if n > 0 {
+		log.Printf("seeded %d default ledger accounts", n)
+	}
+
 	r := gin.Default()
 	httpweb.NewHandler().Register(r)
 	v1 := r.Group("/api/v1")
@@ -122,6 +130,8 @@ func main() {
 	)
 	httpcashweb.NewHandler(cashSvc, cfg.Authorization.IdentityHeader).Register(r)
 
+	ledgerSvc := ledger.NewService(ledgerRepo)
+	httpwebledger.NewHandler(ledgerSvc, cfg.Authorization.IdentityHeader).Register(r)
 	if cfg.Authorization.Enabled {
 		v1.Use(authorization.AuthorizationMiddleware(
 			authzEnforcer,
@@ -140,7 +150,7 @@ func main() {
 	httptax.NewHandler(tax.NewService(perstax.NewSqliteRepository(sqlDB))).Register(v1)
 	httppayroll.NewHandler(payroll.NewService(perspayroll.NewSqliteRepository(sqlDB))).Register(v1)
 	httpcosting.NewHandler(costing.NewService(perscosting.NewSqliteRepository(sqlDB))).Register(v1)
-	httpledger.NewHandler(ledger.NewService(persledger.NewSqliteRepository(sqlDB))).Register(v1)
+	httpledger.NewHandler(ledgerSvc, cfg.Authorization.IdentityHeader).Register(v1)
 	httpcontract.NewHandler(contract.NewService(perscontract.NewSqliteRepository(sqlDB))).Register(v1)
 	httpbudget.NewHandler(budget.NewService(persbudget.NewSqliteRepository(sqlDB))).Register(v1)
 	httpreporting.NewHandler(reporting.NewService(persreporting.NewSqliteRepository(sqlDB))).Register(v1)

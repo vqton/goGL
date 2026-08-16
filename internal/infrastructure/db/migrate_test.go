@@ -53,6 +53,23 @@ func TestMigrate_CreatesCashTables(t *testing.T) {
 	}
 }
 
+func TestMigrate_CreatesLedgerTables(t *testing.T) {
+	d := openTestDB(t)
+	ctx := context.Background()
+
+	if err := db.Migrate(ctx, d); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	for _, name := range []string{
+		"ledger_accounts", "ledger_journals", "ledger_sequences", "ledger_periods", "ledger_templates",
+	} {
+		if !tableExists(t, d, name) {
+			t.Fatalf("expected table %q to exist after migrate", name)
+		}
+	}
+}
+
 func TestMigrate_CashSequencesSchema(t *testing.T) {
 	d := openTestDB(t)
 	ctx := context.Background()

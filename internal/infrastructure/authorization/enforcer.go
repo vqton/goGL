@@ -23,6 +23,27 @@ var DefaultPolicies = struct {
 		{"role:cash_accountant", "/api/v1/cash/reconcile", "POST"},
 		{"role:chief_accountant", "/api/v1/cash/*", "*"},
 		{"role:director", "/api/v1/cash/*/approve", "POST"},
+
+		// Ledger (kế toán tổng hợp). ke_toan_tong_hop maintains the GL (accounts,
+		// manual entries, templates, retries); ke_toan_truong approves posts,
+		// reversals and period control; giam_doc and kiem_toan are read-only.
+		{"role:ke_toan_tong_hop", "/api/v1/ledger/*", "GET"},
+		{"role:ke_toan_tong_hop", "/api/v1/ledger/accounts", "POST"},
+		{"role:ke_toan_tong_hop", "/api/v1/ledger/accounts/*", "PATCH"},
+		{"role:ke_toan_tong_hop", "/api/v1/ledger/entries", "POST"},
+		{"role:ke_toan_tong_hop", "/api/v1/ledger/entries/*", "DELETE"},
+		{"role:ke_toan_tong_hop", "/api/v1/ledger/templates", "POST"},
+		{"role:ke_toan_tong_hop", "/api/v1/ledger/postings/*", "POST"},
+		{"role:ke_toan_truong", "/api/v1/ledger/*", "GET"},
+		{"role:ke_toan_truong", "/api/v1/ledger/entries/*/post", "POST"},
+		{"role:ke_toan_truong", "/api/v1/ledger/entries/*/reverse", "POST"},
+		{"role:ke_toan_truong", "/api/v1/ledger/periods/*/open", "POST"},
+		{"role:ke_toan_truong", "/api/v1/ledger/periods/*/close", "POST"},
+		{"role:ke_toan_truong", "/api/v1/ledger/periods/*/reopen", "POST"},
+		{"role:ke_toan_truong", "/api/v1/ledger/periods/*/close/run", "POST"},
+		{"role:ke_toan_truong", "/api/v1/ledger/opening-balances", "POST"},
+		{"role:giam_doc", "/api/v1/ledger/*", "GET"},
+		{"role:kiem_toan", "/api/v1/ledger/*", "GET"},
 	},
 	Grouping: [][]string{
 		{"admin", "role:admin"},
@@ -56,17 +77,13 @@ func SeedDefaultPolicies(e *casbin.Enforcer) error {
 	}
 
 	for _, rule := range DefaultPolicies.Policies {
-		if ok, err := e.AddPolicy(rule); err != nil {
+		if _, err := e.AddPolicy(rule); err != nil {
 			return err
-		} else if !ok {
-			return nil
 		}
 	}
 	for _, rule := range DefaultPolicies.Grouping {
-		if ok, err := e.AddGroupingPolicy(rule); err != nil {
+		if _, err := e.AddGroupingPolicy(rule); err != nil {
 			return err
-		} else if !ok {
-			return nil
 		}
 	}
 	return nil

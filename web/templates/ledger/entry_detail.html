@@ -1,0 +1,60 @@
+{{ define "ledger_entry_detail" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "ledger_shell_head" . }}<title>Phiếu kế toán — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "ledger_shell_nav" . }}
+<main class="mx-auto max-w-4xl px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-bold tracking-tight">Phiếu kế toán {{ if .Entry.VoucherNo }}<span class="text-indigo-600">{{ .Entry.VoucherNo }}</span>{{ else }}<span class="text-slate-400">(nháp)</span>{{ end }}</h1>
+    <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ statusBadge .Entry.Status }}">{{ statusLabel .Entry.Status }}</span>
+  </div>
+  {{ template "ledger_shell_flash" .Flash }}
+  <dl class="mt-4 grid gap-x-8 gap-y-2 rounded-xl border border-slate-200 bg-white p-5 text-sm shadow-sm sm:grid-cols-2">
+    <div><dt class="text-xs uppercase tracking-wider text-slate-500">Ngày chứng từ</dt><dd class="font-medium">{{ .Entry.VoucherDate }}</dd></div>
+    <div><dt class="text-xs uppercase tracking-wider text-slate-500">Nguồn</dt><dd class="font-medium">{{ .Entry.Source }}</dd></div>
+    <div class="sm:col-span-2"><dt class="text-xs uppercase tracking-wider text-slate-500">Diễn giải</dt><dd class="font-medium">{{ .Entry.Description }}</dd></div>
+    {{ if .Entry.PostedBy }}<div><dt class="text-xs uppercase tracking-wider text-slate-500">Ghi sổ bởi</dt><dd class="font-medium">{{ .Entry.PostedBy }}</dd></div>
+    <div><dt class="text-xs uppercase tracking-wider text-slate-500">Ghi sổ lúc</dt><dd class="font-medium">{{ .Entry.PostedAt }}</dd></div>{{ end }}
+  </dl>
+  <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="w-full text-sm">
+      <thead class="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-4 py-3">TK</th>
+          <th class="px-4 py-3 text-right">Nợ</th>
+          <th class="px-4 py-3 text-right">Có</th>
+          <th class="px-4 py-3">Diễn giải dòng</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {{ range .Entry.Lines }}
+        <tr>
+          <td class="px-4 py-2.5 font-medium">{{ .AccountCode }}</td>
+          <td class="px-4 py-2.5 text-right {{ if .Debit }}font-medium{{ end }}">{{ if .Debit }}{{ money .Debit }}{{ end }}</td>
+          <td class="px-4 py-2.5 text-right {{ if .Credit }}font-medium{{ end }}">{{ if .Credit }}{{ money .Credit }}{{ end }}</td>
+          <td class="px-4 py-2.5 text-slate-600">{{ .Note }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+      <tfoot class="border-t border-slate-200 bg-slate-50 font-medium">
+        <tr>
+          <td class="px-4 py-2.5">Tổng</td>
+          <td class="px-4 py-2.5 text-right">{{ money (sumDebit .Entry.Lines) }}</td>
+          <td class="px-4 py-2.5 text-right">{{ money (sumCredit .Entry.Lines) }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {{ if eq .Entry.Status "draft" }}
+  <div class="mt-4 flex justify-end gap-2">
+    <form method="post" action="/ledger/entries/{{ .Entry.ID }}/delete" onsubmit="return confirm('Xóa bút toán nháp này?')">
+      <button class="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">Xóa nháp</button>
+    </form>
+    <form method="post" action="/ledger/entries/{{ .Entry.ID }}/post">
+      <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Ghi sổ</button>
+    </form>
+  </div>
+  {{ end }}
+</main>
+</body></html>{{ end }}

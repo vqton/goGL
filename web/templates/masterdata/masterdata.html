@@ -1,0 +1,426 @@
+{{ define "masterdata" }}<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ .Title }} — goGL</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+
+<nav class="border-b border-slate-200 bg-white">
+  <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+    <a href="/" class="flex items-center gap-2">
+      <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white">G</span>
+      <span class="text-lg font-semibold tracking-tight">goGL</span>
+    </a>
+    <div class="flex items-center gap-4">
+      <span class="text-sm text-slate-500">Regime: <strong id="regimeBadge" class="text-indigo-600">{{ .Regime }}</strong></span>
+      <span class="text-sm text-slate-400">{{ .Actor }}</span>
+      <span class="text-xs text-slate-400">{{ .Now }}</span>
+    </div>
+  </div>
+</nav>
+
+<header class="mx-auto max-w-7xl px-4 pt-8 pb-4">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ .Title }}</h1>
+      <p class="mt-1 text-sm text-slate-500">Quản lý danh mục cơ bản của hệ thống</p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="seedAccounts()" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">Seed TK (TT99)</button>
+      <button onclick="showRegimeDialog()" class="rounded-lg bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">Chuyển chế độ</button>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-7xl px-4 pb-16">
+  <!-- Kind tabs -->
+  <div class="flex flex-wrap gap-1 border-b border-slate-200" id="kindTabs"></div>
+
+  <!-- Toolbar -->
+  <div class="mt-4 flex items-center gap-3">
+    <input id="searchInput" type="text" placeholder="Tìm mã, tên..." class="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" oninput="loadRecords()">
+    <select id="stateFilter" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" onchange="loadRecords()">
+      <option value="">Tất cả</option>
+      <option value="active">Đang hoạt động</option>
+      <option value="inactive">Ngừng hoạt động</option>
+    </select>
+    <div class="flex-1"></div>
+    <button onclick="showCreateDialog()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">+ Thêm mới</button>
+    <label class="cursor-pointer rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+      Import CSV
+      <input type="file" accept=".csv" class="hidden" onchange="importCSV(this.files[0])">
+    </label>
+    <button onclick="exportCSV()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Export CSV</button>
+    <button onclick="showMergeDialog()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Gộp mã</button>
+  </div>
+
+  <!-- Table -->
+  <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="w-full text-left text-sm">
+      <thead class="bg-slate-50 text-xs font-medium uppercase text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Mã</th>
+          <th class="px-4 py-3">Tên</th>
+          <th class="px-4 py-3">Nhóm</th>
+          <th class="px-4 py-3">Trạng thái</th>
+          <th class="px-4 py-3 text-right">Tham chiếu</th>
+          <th class="px-4 py-3 text-right">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody id="recordTable" class="divide-y divide-slate-100">
+        <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Đang tải...</td></tr>
+      </tbody>
+    </table>
+    <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+      <span id="totalCount">0 bản ghi</span>
+      <div class="flex gap-1">
+        <button onclick="prevPage()" class="rounded px-3 py-1 hover:bg-slate-200">&laquo;</button>
+        <span id="pageInfo" class="px-3 py-1">1 / 1</span>
+        <button onclick="nextPage()" class="rounded px-3 py-1 hover:bg-slate-200">&raquo;</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Create/Edit Dialog -->
+<div id="editDialog" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40" onclick="if(event.target===this)closeDialog()">
+  <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl" onclick="event.stopPropagation()">
+    <h2 id="editTitle" class="text-lg font-semibold">Thêm mới</h2>
+    <form id="editForm" onsubmit="submitForm(event)" class="mt-4 space-y-3">
+      <input type="hidden" id="editIdx" value="-1">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-500">Mã <span id="codeHint" class="text-slate-400">(tự động)</span></label>
+          <input id="editCode" type="text" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="VD: KH-00001">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500">Tên</label>
+          <input id="editName" type="text" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-500">Tên EN</label>
+          <input id="editNameEN" type="text" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500">Nhóm</label>
+          <input id="editGroupCode" type="text" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Mã nhóm cha">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-500">Từ ngày</label>
+          <input id="editValidFrom" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500">Đến ngày</label>
+          <input id="editValidTo" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        </div>
+      </div>
+      <div id="extraFields"></div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeDialog()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Hủy</button>
+        <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Lưu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Merge Dialog -->
+<div id="mergeDialog" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40" onclick="if(event.target===this)closeMergeDialog()">
+  <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl" onclick="event.stopPropagation()">
+    <h2 class="text-lg font-semibold">Gộp mã trùng</h2>
+    <div class="mt-4 space-y-3">
+      <div>
+        <label class="block text-xs font-medium text-slate-500">Giữ lại mã</label>
+        <input id="mergeKeep" type="text" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-500">Gộp các mã (phân cách bằng dấu phẩy)</label>
+        <input id="mergeDupes" type="text" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="KH-00002, KH-00003">
+      </div>
+      <div class="flex items-center gap-2">
+        <input id="mergeDryRun" type="checkbox" checked class="rounded">
+        <label for="mergeDryRun" class="text-sm text-slate-600">Chỉ xem trước (dry run)</label>
+      </div>
+      <div id="mergeResult" class="hidden rounded-lg bg-slate-50 p-3 text-sm text-slate-700"></div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeMergeDialog()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Đóng</button>
+        <button onclick="executeMerge()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Thực hiện</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Regime Dialog -->
+<div id="regimeDialog" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40" onclick="if(event.target===this)closeRegimeDialog()">
+  <div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl" onclick="event.stopPropagation()">
+    <h2 class="text-lg font-semibold">Chuyển chế độ kế toán</h2>
+    <div class="mt-4 space-y-3">
+      <select id="regimeSelect" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <option value="TT99-2025">TT 99/2025</option>
+        <option value="TT200-2014">TT 200/2014</option>
+      </select>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeRegimeDialog()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Hủy</button>
+        <button onclick="switchRegime()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Chuyển</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ACTOR = '{{ .Actor }}';
+const API = '/api/v1/master-data';
+let currentKind = 'account';
+let currentPage = 1;
+let pageSize = 20;
+let catalogs = [];
+const extraCols = {
+  customer: ['tax_code','id_number','passport_no','email','phone','address'],
+  supplier: ['tax_code','id_number','passport_no','email','phone','address'],
+  item: ['item_type','unit_code','vat_rate_code','purchase_account','sale_account','inventory_account'],
+  employee: ['department','position','location','manager'],
+  bank: ['swift_code','iso_code'],
+  currency: ['iso_code'],
+  tax_rate: ['rate','tax_kind','account'],
+  fund: [],
+  cost_object: [],
+  reason: [],
+};
+
+async function api(path, opts) {
+  const res = await fetch(API + path, {
+    headers: {'Content-Type':'application/json','X-User-Id':ACTOR},
+    ...opts,
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || json.message_en || 'Request failed');
+  return json;
+}
+
+async function init() {
+  const {data} = await api('/catalogs');
+  catalogs = data;
+  renderTabs();
+  loadRecords();
+}
+
+function renderTabs() {
+  const el = document.getElementById('kindTabs');
+  el.innerHTML = catalogs.map(c =>
+    `<button onclick="switchKind('${c.kind}')" class="px-3 py-2 text-sm font-medium border-b-2 transition ${c.kind===currentKind?'border-indigo-600 text-indigo-600':'border-transparent text-slate-500 hover:text-slate-700'}">${c.label}</button>`
+  ).join('');
+}
+
+function switchKind(k) {
+  currentKind = k;
+  currentPage = 1;
+  renderTabs();
+  loadRecords();
+}
+
+async function loadRecords() {
+  const q = document.getElementById('searchInput').value;
+  const state = document.getElementById('stateFilter').value;
+  const params = new URLSearchParams({page: currentPage, size: pageSize});
+  if (q) params.set('q', q);
+  if (state) params.set('state', state);
+  try {
+    const {data, total} = await api('/' + currentKind + '?' + params);
+    renderTable(data || []);
+    document.getElementById('totalCount').textContent = (total||0) + ' bản ghi';
+    const totalPages = Math.max(1, Math.ceil((total||0)/pageSize));
+    document.getElementById('pageInfo').textContent = currentPage + ' / ' + totalPages;
+  } catch(e) {
+    document.getElementById('recordTable').innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">${e.message}</td></tr>`;
+  }
+}
+
+function renderTable(rows) {
+  const el = document.getElementById('recordTable');
+  if (!rows.length) {
+    el.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Không có dữ liệu</td></tr>';
+    return;
+  }
+  el.innerHTML = rows.map(r => `
+    <tr class="hover:bg-slate-50">
+      <td class="px-4 py-3 font-mono text-sm">${esc(r.code)}</td>
+      <td class="px-4 py-3">${esc(r.name)}</td>
+      <td class="px-4 py-3 text-slate-500">${esc(r.group_code||'')}</td>
+      <td class="px-4 py-3"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${r.state==='active'?'bg-emerald-50 text-emerald-700':'bg-red-50 text-red-700'}">${r.state==='active'?'Hoạt động':'Ngừng HĐ'}</span></td>
+      <td class="px-4 py-3 text-right text-slate-500">${r.ref_count||0}</td>
+      <td class="px-4 py-3 text-right text-sm">
+        <button onclick="editRecord('${esc(r.code)}')" class="text-indigo-600 hover:underline">Sửa</button>
+        ${r.state==='active'
+          ? `<button onclick="deactivateRecord('${esc(r.code)}')" class="ml-2 text-red-600 hover:underline">Ngừng HĐ</button>`
+          : `<button onclick="activateRecord('${esc(r.code)}')" class="ml-2 text-emerald-600 hover:underline">Kích hoạt</button>`}
+      </td>
+    </tr>`).join('');
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+function prevPage() { if(currentPage>1){currentPage--;loadRecords();} }
+function nextPage() { currentPage++;loadRecords(); }
+
+// ---- CRUD ----
+function showCreateDialog() {
+  document.getElementById('editTitle').textContent = 'Thêm mới ' + (catalogs.find(c=>c.kind===currentKind)||{}).label;
+  document.getElementById('editIdx').value = -1;
+  document.getElementById('editCode').value = '';
+  document.getElementById('editCode').disabled = false;
+  document.getElementById('editName').value = '';
+  document.getElementById('editNameEN').value = '';
+  document.getElementById('editGroupCode').value = '';
+  document.getElementById('editValidFrom').value = '';
+  document.getElementById('editValidTo').value = '';
+  document.getElementById('codeHint').textContent = catalogs.find(c=>c.kind===currentKind)?.auto_code ? '(tự động)' : '(bắt buộc)';
+  renderExtraFields({});
+  openDialog('editDialog');
+}
+
+async function editRecord(code) {
+  const {data} = await api('/' + currentKind + '/' + encodeURIComponent(code));
+  document.getElementById('editTitle').textContent = 'Sửa ' + code;
+  document.getElementById('editIdx').value = code;
+  document.getElementById('editCode').value = data.code;
+  document.getElementById('editCode').disabled = true;
+  document.getElementById('editName').value = data.name;
+  document.getElementById('editNameEN').value = data.name_en || '';
+  document.getElementById('editGroupCode').value = data.group_code || '';
+  document.getElementById('editValidFrom').value = data.valid_from || '';
+  document.getElementById('editValidTo').value = data.valid_to || '';
+  renderExtraFields(data.extra || {});
+  openDialog('editDialog');
+}
+
+function renderExtraFields(extra) {
+  const keys = extraCols[currentKind] || [];
+  const el = document.getElementById('extraFields');
+  if (!keys.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="grid grid-cols-2 gap-3">' + keys.map(k =>
+    `<div><label class="block text-xs font-medium text-slate-500">${k}</label>` +
+    `<input data-extra="${k}" type="text" value="${esc(extra[k]||'')}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></div>`
+  ).join('') + '</div>';
+}
+
+function gatherExtra() {
+  const extra = {};
+  document.querySelectorAll('[data-extra]').forEach(el => {
+    const v = el.value.trim();
+    if (v) extra[el.dataset.extra] = v;
+  });
+  return Object.keys(extra).length ? extra : undefined;
+}
+
+async function submitForm(e) {
+  e.preventDefault();
+  const code = document.getElementById('editIdx').value;
+  const body = {
+    code: document.getElementById('editCode').value || undefined,
+    name: document.getElementById('editName').value,
+    name_en: document.getElementById('editNameEN').value || undefined,
+    group_code: document.getElementById('editGroupCode').value || undefined,
+    valid_from: document.getElementById('editValidFrom').value || undefined,
+    valid_to: document.getElementById('editValidTo').value || undefined,
+    extra: gatherExtra(),
+  };
+  try {
+    if (code === '-1') {
+      await api('/' + currentKind, {method:'POST', body: JSON.stringify(body)});
+    } else {
+      await api('/' + currentKind + '/' + encodeURIComponent(code), {method:'PUT', body: JSON.stringify(body)});
+    }
+    closeDialog();
+    loadRecords();
+  } catch(e) { alert(e.message); }
+}
+
+async function deactivateRecord(code) {
+  if (!confirm('Ngừng hoạt động ' + code + '?')) return;
+  const reason = prompt('Lý do (tùy chọn):') || '';
+  await api('/' + currentKind + '/' + encodeURIComponent(code) + '/deactivate', {method:'POST', body: JSON.stringify({reason})});
+  loadRecords();
+}
+
+async function activateRecord(code) {
+  await api('/' + currentKind + '/' + encodeURIComponent(code) + '/activate', {method:'POST'});
+  loadRecords();
+}
+
+// ---- Import/Export ----
+async function importCSV(file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(API + '/import?kind=' + currentKind, {method:'POST', headers:{'X-User-Id':ACTOR}, body: fd});
+  const json = await res.json();
+  if (!res.ok) { alert(json.error); return; }
+  const d = json.data;
+  alert(`Import xong: ${d.created} tạo mới, ${d.updated} cập nhật, ${d.errors?.length||0} lỗi`);
+  loadRecords();
+}
+
+function exportCSV() {
+  window.open(API + '/' + currentKind + '/export?kind=' + currentKind, '_blank');
+}
+
+// ---- Merge ----
+function showMergeDialog() { openDialog('mergeDialog'); document.getElementById('mergeResult').classList.add('hidden'); }
+function closeMergeDialog() { closeDialog('mergeDialog'); }
+
+async function executeMerge() {
+  const keep = document.getElementById('mergeKeep').value.trim();
+  const dupes = document.getElementById('mergeDupes').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const dryRun = document.getElementById('mergeDryRun').checked;
+  if (!keep || !dupes.length) { alert('Nhập mã giữ lại và mã cần gộp'); return; }
+  try {
+    const {data} = await api('/' + currentKind + '/merge', {method:'POST', body: JSON.stringify({keep, dupes, dry_run: dryRun})});
+    const el = document.getElementById('mergeResult');
+    el.classList.remove('hidden');
+    el.innerHTML = `<strong>${dryRun?'Dry run:':'Đã gộp:'}</strong> ${data.merged.length} mã<br>` +
+      Object.entries(data.impacted||{}).map(([k,v])=>`${k}: ${v} tham chiếu`).join('<br>');
+    if (!dryRun) loadRecords();
+  } catch(e) { alert(e.message); }
+}
+
+// ---- Seed ----
+async function seedAccounts() {
+  if (!confirm('Seed chart of accounts (TT 99/2025)?')) return;
+  const {data} = await api('/accounts/seed', {method:'POST'});
+  alert('Tạo mới ' + data.created + ' tài khoản');
+  if (currentKind === 'account') loadRecords();
+}
+
+// ---- Regime ----
+function showRegimeDialog() { openDialog('regimeDialog'); }
+function closeRegimeDialog() { closeDialog('regimeDialog'); }
+
+async function switchRegime() {
+  const regime = document.getElementById('regimeSelect').value;
+  await api('/settings/regime', {method:'POST', body: JSON.stringify({regime})});
+  document.getElementById('regimeBadge').textContent = regime;
+  closeRegimeDialog();
+}
+
+// ---- Dialog helpers ----
+function openDialog(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('hidden');
+  el.classList.add('flex');
+}
+function closeDialog(id) {
+  const el = document.getElementById(id || 'editDialog');
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+}
+
+init();
+</script>
+</body>
+</html>{{ end }}

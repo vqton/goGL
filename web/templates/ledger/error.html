@@ -1,0 +1,11 @@
+{{ define "ledger_error" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "ledger_shell_head" . }}<title>Lỗi — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "ledger_shell_nav" . }}
+<main class="mx-auto max-w-2xl px-4 py-16 text-center">
+  <h1 class="text-2xl font-bold tracking-tight text-red-600">Đã có lỗi xảy ra</h1>
+  <p class="mt-2 text-sm text-slate-600">{{ .Message }}</p>
+  <a href="/ledger" class="mt-6 inline-block rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-100">Về Sổ nhật ký chung</a>
+</main>
+</body></html>{{ end }}

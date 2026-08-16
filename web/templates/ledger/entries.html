@@ -1,0 +1,57 @@
+{{ define "ledger_entries" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "ledger_shell_head" . }}<title>Sổ nhật ký chung — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "ledger_shell_nav" . }}
+<main class="mx-auto max-w-6xl px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-bold tracking-tight">Sổ nhật ký chung</h1>
+    <a href="/ledger/entries/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">+ Phiếu kế toán</a>
+  </div>
+  {{ template "ledger_shell_flash" .Flash }}
+  <form method="get" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-500">Kỳ</span>
+      <select name="period" class="rounded-lg border border-slate-300 px-3 py-1.5">
+        <option value="">Tất cả</option>
+        {{ range .Periods }}<option value="{{ .ID }}" {{ if eq $.Filter.Period .ID }}selected{{ end }}>{{ .ID }}</option>{{ end }}
+      </select>
+    </label>
+    <label class="block">
+      <span class="mb-1 block text-xs text-slate-500">Trạng thái</span>
+      <select name="status" class="rounded-lg border border-slate-300 px-3 py-1.5">
+        <option value="">Tất cả</option>
+        <option value="draft" {{ if eq $.Filter.Status "draft" }}selected{{ end }}>Nháp</option>
+        <option value="posted" {{ if eq $.Filter.Status "posted" }}selected{{ end }}>Đã ghi sổ</option>
+      </select>
+    </label>
+    <button class="rounded-lg border border-slate-300 bg-white px-4 py-1.5 hover:bg-slate-100">Lọc</button>
+  </form>
+  <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="w-full text-sm">
+      <thead class="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Số chứng từ</th>
+          <th class="px-4 py-3">Ngày</th>
+          <th class="px-4 py-3">Diễn giải</th>
+          <th class="px-4 py-3 text-right">Tổng Nợ</th>
+          <th class="px-4 py-3 text-right">Tổng Có</th>
+          <th class="px-4 py-3">Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {{ range .Entries }}
+        <tr class="hover:bg-slate-50">
+          <td class="px-4 py-2.5"><a href="/ledger/entries/{{ .ID }}" class="font-medium text-indigo-600 hover:underline">{{ if .VoucherNo }}{{ .VoucherNo }}{{ else }}—{{ end }}</a></td>
+          <td class="px-4 py-2.5">{{ .VoucherDate }}</td>
+          <td class="px-4 py-2.5 text-slate-600">{{ .Description }}</td>
+          <td class="px-4 py-2.5 text-right font-medium">{{ money (sumDebit .Lines) }}</td>
+          <td class="px-4 py-2.5 text-right font-medium">{{ money (sumCredit .Lines) }}</td>
+          <td class="px-4 py-2.5"><span class="rounded-full px-2 py-0.5 text-xs font-medium {{ statusBadge .Status }}">{{ statusLabel .Status }}</span></td>
+        </tr>
+        {{ else }}<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Chưa có bút toán nào.</td></tr>{{ end }}
+      </tbody>
+    </table>
+  </div>
+</main>
+</body></html>{{ end }}
