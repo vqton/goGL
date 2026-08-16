@@ -19,6 +19,8 @@ var (
 	ErrBalanceLocked      = errors.New("setup: opening balances are locked")
 	ErrReopenBlocked      = errors.New("setup: reopen blocked — posted vouchers reference this account")
 	ErrBalanceNotFound    = errors.New("setup: opening balance not found")
+	ErrInvalidImport      = errors.New("setup: invalid CSV import — header must match template v1")
+	ErrImportNotFound     = errors.New("setup: import job report not found")
 )
 
 // ValidationError is a client-facing 422 carrying VN + EN messages, mirroring

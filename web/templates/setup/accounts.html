@@ -1,0 +1,57 @@
+{{ define "setup_accounts" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "setup_shell_head" . }}<title>Sơ đồ tài khoản — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "setup_shell_nav" . }}
+<main class="mx-auto max-w-6xl px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight">Bước 3 · Sơ đồ tài khoản</h1>
+      <p class="mt-1 text-sm text-slate-500">Danh sách TK đã tạo theo chế độ {{ .View.Regime }} — chỉ TK có đánh dấu "postable" được hạch toán (R7).</p>
+    </div>
+    <span class="rounded-full bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200">{{ statusLabel .View.Status }}</span>
+  </div>
+  {{ template "setup_shell_flash" . }}
+
+  <div class="mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">TK đã tạo ({{ .Preview.Total }})</h2>
+      {{ if eq .View.Status "accounts_seeded" }}
+      <a href="/setup/start" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">Bổ sung/chỉnh cấu hình →</a>
+      {{ end }}
+    </div>
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="border-b border-slate-100 text-xs uppercase tracking-wider text-slate-400">
+          <th class="px-5 py-2 font-medium">Mã TK</th>
+          <th class="px-5 py-2 font-medium">Tên tài khoản</th>
+          <th class="px-5 py-2 font-medium">Loại</th>
+          <th class="px-5 py-2 font-medium">Hạch toán</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Preview.Accounts }}
+        <tr class="border-b border-slate-50 last:border-0">
+          <td class="px-5 py-2 font-mono font-semibold">{{ .Code }}</td>
+          <td class="px-5 py-2">{{ .Name }}</td>
+          <td class="px-5 py-2 text-slate-500">{{ .Type }}</td>
+          <td class="px-5 py-2">{{ if .Postable }}<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">postable</span>{{ else }}<span class="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-400 ring-1 ring-slate-200">tổng hợp</span>{{ end }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ if eq .Preview.Total 0 }}
+    <p class="px-5 py-6 text-sm text-slate-500">Chưa có tài khoản nào. Hoàn tất bước 1–2 để tạo sơ đồ TK.</p>
+    {{ end }}
+  </div>
+
+  <div class="mt-4 flex items-center gap-3">
+    {{ if eq .View.Status "accounts_seeded" }}
+    <a href="/setup/start" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">← Bước 1–2</a>
+    <a href="/setup/balances" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Nhập số dư đầu kỳ →</a>
+    {{ else }}
+    <a href="/setup/balances" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Đến bước 4 (Số dư đầu kỳ) →</a>
+    {{ end }}
+  </div>
+</main>
+</body></html>{{ end }}

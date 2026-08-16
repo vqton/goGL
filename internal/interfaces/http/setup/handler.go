@@ -2,8 +2,11 @@ package setup
 
 import (
 	"database/sql"
+	"encoding/csv"
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -35,6 +38,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	ob.POST("/check", h.checkBalances)
 	ob.POST("/import", h.importBalances)
 	ob.GET("/import/:jobId/report", h.importReport)
+	ob.GET("/import/:jobId/errors.csv", h.importErrorsCSV)
 	ob.POST("/lock", h.lock)
 	ob.POST("/reopen", h.reopen)
 }
@@ -54,6 +58,7 @@ func respondError(c *gin.Context, err error) {
 		code = http.StatusConflict
 	case errors.Is(err, domainsetup.ErrNotInitialized),
 		errors.Is(err, domainsetup.ErrBalanceNotFound),
+		errors.Is(err, domainsetup.ErrImportNotFound),
 		errors.Is(err, sql.ErrNoRows):
 		code = http.StatusNotFound
 	case errors.Is(err, domainsetup.ErrInvalidProfile),
@@ -64,7 +69,8 @@ func respondError(c *gin.Context, err error) {
 		errors.Is(err, domainsetup.ErrInvalidBalance),
 		errors.Is(err, domainsetup.ErrAccountNotFound),
 		errors.Is(err, domainsetup.ErrObjectRequired),
-		errors.Is(err, domainsetup.ErrObjectNotFound):
+		errors.Is(err, domainsetup.ErrObjectNotFound),
+		errors.Is(err, domainsetup.ErrInvalidImport):
 		code = http.StatusUnprocessableEntity
 	default:
 		var ve *domainsetup.ValidationError
@@ -192,10 +198,37 @@ func (h *Handler) importBalances(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-// importReport is a v1 placeholder: ImportBalances runs synchronously and
-// returns the per-row report inline; async job persistence is a later upgrade.
+// importReport returns the persisted per-row report for a previous import
+// (spec §4: GET /opening-balances/import/:jobId/report). Dry-run and commit
+// reports are both stored, so the operator can re-inspect errors later.
 func (h *Handler) importReport(c *gin.Context) {
-	c.Status(http.StatusNotImplemented)
+	job, err := h.svc.GetImportReport(c.Request.Context(), c.Param("jobId"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, job)
+}
+
+// importErrorsCSV exports the failed rows of a previous import as a CSV the
+// operator can fix and re-upload (spec §5.4: "M errors row+reason").
+func (h *Handler) importErrorsCSV(c *gin.Context) {
+	job, err := h.svc.GetImportReport(c.Request.Context(), c.Param("jobId"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	var sb strings.Builder
+	w := csv.NewWriter(&sb)
+	_ = w.Write([]string{"row", "column", "message"})
+	for _, e := range job.Errors {
+		_ = w.Write([]string{strconv.Itoa(e.Row), e.Column, e.Message})
+	}
+	w.Flush()
+
+	c.Header("Content-Disposition", "attachment; filename=opening-balances-import-errors-"+job.ID+".csv")
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.String(http.StatusOK, sb.String())
 }
 
 func (h *Handler) lock(c *gin.Context) {

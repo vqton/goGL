@@ -85,3 +85,38 @@ func TestService_RecordKeepsProvidedIDAndTimestamp(t *testing.T) {
 		t.Fatalf("expected provided id/timestamp preserved, got %+v", got)
 	}
 }
+
+func TestService_ListRecent(t *testing.T) {
+	d := openTestDB(t)
+	ctx := context.Background()
+	svc := audit.NewService(persaudit.NewSqliteRepository(d))
+
+	for _, l := range []domainaudit.AuditLog{
+		{UserCode: "u1", Module: "setup", Action: "balances.lock", TargetID: "s", Timestamp: "2026-08-08T10:00:00Z"},
+		{UserCode: "u2", Module: "cash", Action: "voucher.create", TargetID: "v-1", Timestamp: "2026-08-08T11:00:00Z"},
+		{UserCode: "u3", Module: "setup", Action: "balances.reopen", TargetID: "s", Timestamp: "2026-08-08T09:00:00Z"},
+	} {
+		if err := svc.Record(ctx, &l); err != nil {
+			t.Fatalf("record: %v", err)
+		}
+	}
+
+	trail, err := svc.ListRecent(ctx, "setup", 10)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(trail) != 2 {
+		t.Fatalf("want 2 setup logs, got %d: %+v", len(trail), trail)
+	}
+	if trail[0].Action != "balances.lock" || trail[1].Action != "balances.reopen" {
+		t.Fatalf("setup trail must be newest-first: %+v", trail)
+	}
+
+	limited, err := svc.ListRecent(ctx, "", 1)
+	if err != nil {
+		t.Fatalf("limited list: %v", err)
+	}
+	if len(limited) != 1 || limited[0].Action != "voucher.create" {
+		t.Fatalf("limit 1 must return newest entry: %+v", limited)
+	}
+}

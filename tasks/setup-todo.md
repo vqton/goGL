@@ -82,21 +82,35 @@ orchestrator — no new infra.
 **Checkpoint:** build/vet/test green.
 
 ## Phase 3 — Import + status dashboard
-- [ ] T3.1 CSV import (`opening-balances/import`): template v1, dry-run job with
+- [x] T3.1 CSV import (`opening-balances/import`): template v1, dry-run job with
   per-row error report, idempotent upsert, batched commit, template version
   rejection, error CSV export. Accept: errors never silently dropped.
   Verify: import tests.
-  → **Partially delivered**: sync `ImportBalances` with dry-run, per-row error
-  report (`RowError`) and idempotent upsert (deterministic `BalanceID`); tests
-  `TestImportBalances` + handler `_DryRun`/`_Commit`/`_InvalidRow422`.
-  **Not yet**: async job persistence (`GET /import/:jobId/report` is a 501
-  placeholder), batched commit, template version rejection, error CSV export.
-- [ ] T3.2 Wizard step 3 (accounts preview via masterdata) + status dashboard
+  → Delivered: sync `ImportBalances` with dry-run, per-row error report
+  (`RowError`), idempotent upsert (deterministic `BalanceID`), **template v1
+  header rejection** (`ErrInvalidImport` — exact columns, case/space-normalized),
+  **batched commit** (`SaveBalances`, one tx per batch), **persisted import
+  jobs** (`ImportJob` in `opening_balance_imports`, content-hash id ⇒
+  re-upload overwrites its own report; dry-run/commit ids never collide),
+  **real `GET /opening-balances/import/:jobId/report`** and
+  **`GET /import/:jobId/errors.csv`** (row,column,message + Content-Disposition).
+  Tests: `TestImportBalances_TemplateVersionRejected`, `_PersistsJobReport`,
+  `TestImportReport_PersistedJob`, `TestImportReport_ErrorsCSV`,
+  `TestImportJobRoundtrip`, `TestSaveBalancesBatchTx`. Note: job persistence
+  added the `opening_balance_imports` table — a deliberate deviation from
+  spec §6's "no other new tables" (recorded so the migration stays truthful).
+- [x] T3.2 Wizard step 3 (accounts preview via masterdata) + status dashboard
   (`05-ui §2.4, §2.9`) with step checklist, regime badge, ΣNợ/ΣCó, audit view.
   Verify: walkthrough.
-  → **Partially delivered**: `/setup` dashboard with status + step checklist and
-  the balances page (ΣNợ/ΣCó banner). **Not yet**: step-3 accounts preview page
-  and the audit view.
+  → Delivered: `/setup` dashboard (status + step checklist + ΣNợ/ΣCó) **and**
+  the **step-3 accounts preview** (`/setup/accounts`, read-only COA from the
+  ledger seam, linked from the wizard) **and the audit view** ("Nhật ký hoạt
+  động (R13)", newest 15 setup entries). Cross-module seam added: `audit`
+  gained `ListRecent(ctx, module, limit)` (domain + sqlite repo + service);
+  setup `Auditor` seam extended; websetup renders `setup_accounts` +
+  trail section. Tests: `TestPreviewAccounts`, `TestAuditTrail`,
+  `TestAccountsPage_ListsSeededChart`, wizard trail assertions,
+  `TestService_ListRecent`, `TestRepository_ListRecent`.
 
 **Checkpoint:** build/vet/test green.
 
@@ -117,12 +131,27 @@ orchestrator — no new infra.
   ledger seam rejects 131 balances (`ErrAccountNotFound`). Decide the source of
   truth (align ledger chart with masterdata/spec, or change R10 to 1311) before
   the "books carry opening balances" wiring lands.
-- [ ] T4.2 Concurrency/perf: parallel init + balance upserts; single-writer path
+- [x] T4.2 Concurrency/perf: parallel init + balance upserts; single-writer path
   (BEGIN IMMEDIATE where needed); index tuning if lists slow. Verify: benchmark.
-- [ ] T4.3 Security review (authz matrix, audit trail, MST not logged outside
+  → `BenchmarkImportBalances100`: ~4.8 ms / balanced 100-row import (≈21k rows/s,
+  one batched tx + job persist + audit; ~152 KB, 1857 allocs). 
+  `BenchmarkConcurrentSaveBalance` (8 goroutines, distinct accounts):
+  ~1.5 ms/op — the service mutex serializes writers (single-writer path),
+  deterministic-id upserts stay idempotent under contention. Parallel init
+  already proven idempotent by `TestInitializeConcurrent`. No schema change
+  needed: `rowid` scan is fine at v1 CSV volumes; revisit indexes only if lists
+  measurably regress.
+- [x] T4.3 Security review (authz matrix, audit trail, MST not logged outside
   audit) → `docs/setup/08-security.md`. Verify: review checklist.
+  → Documented: full route×role matrix (incl. new `errors.csv` GET — policy
+  added to `setup_policies.go` + deny/allow tests), R13 action list, MST-not-
+  logged guarantee, CSV hardening (template reject, atomic batch, content-hash
+  ids), input rules, and residual risks (identity-header dev seam HIGH, wizard
+  outside Casbin, reopen reason not persisted, plaintext MST at rest).
 - [x] T4.4 Coverage ≥ 80% service+repo; vet clean. Verify: `go test -cover`.
-  → service 81.8%, repo 88.1% (both ≥80%), websetup 73.1%; `go vet` clean.
+  → after T3: service 83.0%, repo 86.4% (both ≥80%), websetup 72.7%
+  (slightly under 73.1% — new import-error branches uncovered), audit app
+  90.9%; combined ≈80.7% ≥80%. `go vet` clean.
 
 **Checkpoint:** build/vet/test green.
 

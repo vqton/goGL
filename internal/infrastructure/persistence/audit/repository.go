@@ -39,3 +39,31 @@ func (r *sqliteRepository) FindByID(ctx context.Context, id string) (*audit.Audi
 	}
 	return &l, nil
 }
+
+// ListRecent returns the newest logs, newest first, optionally filtered by
+// module. Ties on timestamp break by insertion order (rowid DESC).
+func (r *sqliteRepository) ListRecent(ctx context.Context, module string, limit int) ([]*audit.AuditLog, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT data FROM audit_logs
+		 WHERE ? = '' OR json_extract(data, '$.module') = ?
+		 ORDER BY json_extract(data, '$.timestamp') DESC, rowid DESC
+		 LIMIT ?`, module, module, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*audit.AuditLog
+	for rows.Next() {
+		var data string
+		if err := rows.Scan(&data); err != nil {
+			return nil, err
+		}
+		var l audit.AuditLog
+		if err := json.Unmarshal([]byte(data), &l); err != nil {
+			return nil, err
+		}
+		out = append(out, &l)
+	}
+	return out, rows.Err()
+}

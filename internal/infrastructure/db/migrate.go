@@ -34,6 +34,7 @@ var tables = []string{
 	"company_profiles",
 	"opening_balances",
 	"setup_status",
+	"opening_balance_imports",
 	"catalog_items",
 	"users",
 	"roles",

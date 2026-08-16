@@ -40,6 +40,7 @@ func Funcs() template.FuncMap {
 	return template.FuncMap{
 		"money":       money,
 		"fmtDate":     fmtDate,
+		"fmtTs":       fmtTs,
 		"sumDebit":    sumDebit,
 		"sumCredit":   sumCredit,
 		"statusLabel": statusLabel,
@@ -51,6 +52,7 @@ func (h *Handler) Register(r *gin.Engine) {
 	g.GET("", h.wizard)
 	g.GET("/start", h.startForm)
 	g.POST("/start", h.start)
+	g.GET("/accounts", h.accounts)
 	g.GET("/balances", h.balances)
 	g.POST("/balances", h.saveBalance)
 	g.POST("/balances/:id/delete", h.deleteBalance)
@@ -84,10 +86,14 @@ func (h *Handler) wizard(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
+	// R13: recent setup audit trail for the dashboard (best effort — a read
+	// failure must not take down the status page).
+	trail, _ := h.svc.AuditTrail(ctx, "setup", 15)
 	c.HTML(http.StatusOK, "setup_wizard", gin.H{
-		"View": view,
-		"Err":  c.Query("err"),
-		"Ok":   c.Query("ok"),
+		"View":  view,
+		"Trail": trail,
+		"Err":   c.Query("err"),
+		"Ok":    c.Query("ok"),
 	})
 }
 
@@ -146,6 +152,26 @@ func (h *Handler) start(c *gin.Context) {
 	}
 	_ = view
 	c.Redirect(http.StatusSeeOther, "/setup?ok="+url.QueryEscape("Đã lưu. Bước tiếp theo: nhập số dư đầu kỳ."))
+}
+
+// accounts renders step 3: a read-only preview of the seeded COA (via the
+// ledger seam) so the operator can confirm the chart before entering balances.
+func (h *Handler) accounts(c *gin.Context) {
+	ctx := c.Request.Context()
+	view, err := h.svc.Status(ctx)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	preview, err := h.svc.PreviewAccounts(ctx)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.HTML(http.StatusOK, "setup_accounts", gin.H{
+		"View":    view,
+		"Preview": preview,
+	})
 }
 
 // balances renders step 4: the opening-balance table, the live balance check
@@ -307,6 +333,15 @@ func fmtDate(v string) string {
 		return v
 	}
 	return t.Format("02/01/2006")
+}
+
+// fmtTs converts an RFC3339 audit timestamp to dd/MM/yyyy HH:mm for display.
+func fmtTs(v string) string {
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return v
+	}
+	return t.Format("02/01/2006 15:04")
 }
 
 func sumDebit(bs []*domainsetup.OpeningBalance) int64 {

@@ -42,6 +42,7 @@ func init() {
 	DefaultPolicies.Policies = append(DefaultPolicies.Policies,
 		[]string{"role:ke_toan_tong_hop", "/api/v1/setup/opening-balances/*", "DELETE"},
 		[]string{"role:ke_toan_tong_hop", "/api/v1/setup/opening-balances/import/*/report", "GET"},
+		[]string{"role:ke_toan_tong_hop", "/api/v1/setup/opening-balances/import/*/errors.csv", "GET"},
 	)
 
 	// Chief accountant: lifecycle control + override on balance writes/import.
@@ -51,6 +52,7 @@ func init() {
 		{"role:ke_toan_truong", "/api/v1/setup/opening-balances", "POST"},
 		{"role:ke_toan_truong", "/api/v1/setup/opening-balances/import", "POST"},
 		{"role:ke_toan_truong", "/api/v1/setup/opening-balances/import/*/report", "GET"},
+		{"role:ke_toan_truong", "/api/v1/setup/opening-balances/import/*/errors.csv", "GET"},
 		{"role:ke_toan_truong", "/api/v1/setup/opening-balances/lock", "POST"},
 		{"role:ke_toan_truong", "/api/v1/setup/opening-balances/reopen", "POST"},
 		{"role:ke_toan_truong", "/api/v1/setup/activate", "POST"},

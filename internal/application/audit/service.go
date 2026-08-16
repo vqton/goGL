@@ -12,6 +12,7 @@ import (
 type Service interface {
 	Record(ctx context.Context, l *audit.AuditLog) error
 	GetLog(ctx context.Context, id string) (*audit.AuditLog, error)
+	ListRecent(ctx context.Context, module string, limit int) ([]*audit.AuditLog, error)
 }
 
 type service struct {
@@ -38,4 +39,8 @@ func (s *service) Record(ctx context.Context, l *audit.AuditLog) error {
 
 func (s *service) GetLog(ctx context.Context, id string) (*audit.AuditLog, error) {
 	return s.repo.FindByID(ctx, id)
+}
+
+func (s *service) ListRecent(ctx context.Context, module string, limit int) ([]*audit.AuditLog, error) {
+	return s.repo.ListRecent(ctx, module, limit)
 }

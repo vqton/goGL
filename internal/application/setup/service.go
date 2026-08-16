@@ -2,7 +2,9 @@ package setup
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -30,7 +32,10 @@ type Service interface {
 	ListBalances(ctx context.Context, accountCode string) (*BalanceList, error)
 	DeleteBalance(ctx context.Context, id, actor string) error
 	CheckBalances(ctx context.Context) (*setup.BalanceCheck, error)
+	PreviewAccounts(ctx context.Context) (*setup.AccountPreview, error)
+	AuditTrail(ctx context.Context, module string, limit int) ([]*audit.AuditLog, error)
 	ImportBalances(ctx context.Context, rows [][]string, actor string, dryRun bool) (*setup.ImportResult, error)
+	GetImportReport(ctx context.Context, jobID string) (*setup.ImportJob, error)
 
 	Lock(ctx context.Context, actor string) error
 	Reopen(ctx context.Context, actor, reason string) error
@@ -110,9 +115,11 @@ type PeriodOpener interface {
 	ListPeriods(ctx context.Context) ([]*ledger.AccountingPeriod, error)
 }
 
-// AccountLookup resolves a TK code for the R7 account checks.
+// AccountLookup resolves TK codes for the R7 account checks and lists the
+// seeded COA for the step-3 preview.
 type AccountLookup interface {
 	GetAccountByCode(ctx context.Context, code string) (*ledger.Account, error)
+	ListAccounts(ctx context.Context, f ledger.AccountFilter) ([]*ledger.Account, error)
 }
 
 // PostingLister lists posted journal entries for the R12 reopen guard.
@@ -120,9 +127,11 @@ type PostingLister interface {
 	ListEntries(ctx context.Context, f ledger.EntryFilter) ([]*ledger.JournalEntry, error)
 }
 
-// Auditor appends the audit trail on every mutation (R13).
+// Auditor appends the audit trail on every mutation (R13) and exposes the
+// recent trail for the dashboard view.
 type Auditor interface {
 	Record(ctx context.Context, l *audit.AuditLog) error
+	ListRecent(ctx context.Context, module string, limit int) ([]*audit.AuditLog, error)
 }
 
 type service struct {
@@ -658,6 +667,35 @@ func (s *service) Activate(ctx context.Context, actor string) error {
 // importColumns is the v1 CSV template header (docs/setup §5.4).
 var importColumns = []string{"account", "object_type", "object_code", "debit", "credit"}
 
+// importHeaderOK rejects any CSV whose header is not exactly template v1
+// (T3.1 — template version rejection). Column order matters; the parser maps
+// positions, so a shuffled header would silently corrupt data.
+func importHeaderOK(header []string) bool {
+	if len(header) != len(importColumns) {
+		return false
+	}
+	for i, want := range importColumns {
+		if strings.ReplaceAll(strings.ToLower(strings.TrimSpace(header[i])), " ", "") != want {
+			return false
+		}
+	}
+	return true
+}
+
+// importJobID derives the deterministic job id for one upload: sha256 of the
+// CSV content (header included) plus the dry-run flag, so re-uploading the
+// same file overwrites its own report and dry-run/commit reports never
+// collide.
+func importJobID(rows [][]string, dryRun bool) string {
+	h := sha256.New()
+	for _, r := range rows {
+		h.Write([]byte(strings.Join(r, "\x1f")))
+		h.Write([]byte{0})
+	}
+	h.Write([]byte(strconv.FormatBool(dryRun)))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 func (s *service) ImportBalances(ctx context.Context, rows [][]string, actor string, dryRun bool) (*setup.ImportResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -673,11 +711,12 @@ func (s *service) ImportBalances(ctx context.Context, rows [][]string, actor str
 		return nil, setup.ErrWrongState
 	}
 
-	res := &setup.ImportResult{DryRun: dryRun}
-	if len(rows) > 0 {
-		rows = rows[1:] // header
+	if len(rows) == 0 || !importHeaderOK(rows[0]) {
+		return nil, setup.ErrInvalidImport
 	}
-	res.Total = len(rows)
+	rows = rows[1:] // header
+
+	res := &setup.ImportResult{DryRun: dryRun, Total: len(rows)}
 
 	profile, err := s.repo.GetProfile(ctx, setup.ProfileID)
 	if err != nil {
@@ -695,6 +734,7 @@ func (s *service) ImportBalances(ctx context.Context, rows [][]string, actor str
 		}
 	}
 
+	var pending []*setup.OpeningBalance
 	for i, row := range rows {
 		line := i + 2 // 1-based with header
 		b, err := parseBalanceRow(row)
@@ -722,12 +762,57 @@ func (s *service) ImportBalances(ctx context.Context, rows [][]string, actor str
 			res.Created++
 			existing[b.ID] = true
 		}
-		if err := s.repo.SaveBalance(ctx, b); err != nil {
+		pending = append(pending, b)
+	}
+	if len(pending) > 0 {
+		// one tx per batch (spec §5.4): all-or-nothing.
+		if err := s.repo.SaveBalances(ctx, pending); err != nil {
 			return nil, err
 		}
 	}
-	s.audit(ctx, actor, "balances.import", strconv.Itoa(res.Total))
+
+	res.JobID = importJobID(append([][]string{importColumns}, rows...), dryRun)
+	jobStatus := setup.JobOK
+	if len(res.Errors) > 0 {
+		jobStatus = setup.JobErrored
+	}
+	job := &setup.ImportJob{
+		ID: res.JobID, Status: jobStatus, Total: res.Total,
+		Created: res.Created, Updated: res.Updated, Errors: res.Errors,
+		DryRun: dryRun, CreatedBy: actor, CreatedAt: now,
+	}
+	if err := s.repo.SaveImportJob(ctx, job); err != nil {
+		return nil, err
+	}
+	s.audit(ctx, actor, "balances.import", res.JobID)
 	return res, nil
+}
+
+func (s *service) GetImportReport(ctx context.Context, jobID string) (*setup.ImportJob, error) {
+	return s.repo.GetImportJob(ctx, jobID)
+}
+
+// AuditTrail returns the recent setup-module audit trail for the dashboard
+// (R13): profile saves, seed, period opens, balance mutations, imports,
+// locks/reopens and activation.
+func (s *service) AuditTrail(ctx context.Context, module string, limit int) ([]*audit.AuditLog, error) {
+	return s.deps.Audit.ListRecent(ctx, module, limit)
+}
+
+// PreviewAccounts lists the seeded COA for the wizard step 3 ("Tài khoản").
+// Read-only: no status guard, so the page is safe to render at any point.
+func (s *service) PreviewAccounts(ctx context.Context) (*setup.AccountPreview, error) {
+	accts, err := s.deps.Accounts.ListAccounts(ctx, ledger.AccountFilter{})
+	if err != nil {
+		return nil, err
+	}
+	out := &setup.AccountPreview{Total: len(accts)}
+	for _, a := range accts {
+		out.Accounts = append(out.Accounts, setup.PreviewAccount{
+			Code: a.Code, Name: a.Name, Type: string(a.Type), Postable: a.AllowPost,
+		})
+	}
+	return out, nil
 }
 
 // parseBalanceRow maps one CSV data row onto an OpeningBalance draft.

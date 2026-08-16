@@ -16,4 +16,5 @@ type AuditLog struct {
 type Repository interface {
 	Create(ctx context.Context, l *AuditLog) error
 	FindByID(ctx context.Context, id string) (*AuditLog, error)
+	ListRecent(ctx context.Context, module string, limit int) ([]*AuditLog, error)
 }

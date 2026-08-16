@@ -65,3 +65,39 @@ func TestRepository_FindByID_Missing(t *testing.T) {
 		t.Fatalf("expected sql.ErrNoRows, got %v", err)
 	}
 }
+
+func TestRepository_ListRecent(t *testing.T) {
+	d := openTestDB(t)
+	ctx := context.Background()
+	repo := persaudit.NewSqliteRepository(d)
+
+	logs := []audit.AuditLog{
+		{ID: "1", Module: "setup", Action: "setup.activate", TargetID: "s", Timestamp: "2026-08-08T12:00:00Z"},
+		{ID: "2", Module: "cash", Action: "voucher.create", TargetID: "v-1", Timestamp: "2026-08-08T11:00:00Z"},
+		{ID: "3", Module: "setup", Action: "balances.lock", TargetID: "s", Timestamp: "2026-08-08T10:00:00Z"},
+		{ID: "4", Module: "setup", Action: "balances.reopen", TargetID: "s", Timestamp: "2026-08-08T09:00:00Z"},
+	}
+	for i := range logs {
+		if err := repo.Create(ctx, &logs[i]); err != nil {
+			t.Fatalf("create %s: %v", logs[i].ID, err)
+		}
+	}
+
+	got, err := repo.ListRecent(ctx, "setup", 2)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 2 || got[0].ID != "1" || got[1].ID != "3" {
+		t.Fatalf("module-filtered list mismatch: %+v", got)
+	}
+
+	all, err := repo.ListRecent(ctx, "", 10)
+	if err != nil {
+		t.Fatalf("list all: %v", err)
+	}
+	if len(all) != 4 || all[0].ID != "1" || all[3].ID != "4" {
+		t.Fatalf("all-modules list must be newest-first: %+v", all)
+	}
+	// timestamps are RFC3339 with an offset, so the lexicographic ORDER BY on
+	// the same timezone holds; entries equal on timestamp break by insertion.
+}

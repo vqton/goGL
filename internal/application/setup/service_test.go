@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 
@@ -99,6 +100,18 @@ func (f *fakeAccounts) GetAccountByCode(_ context.Context, code string) (*ledger
 	return a, nil
 }
 
+func (f *fakeAccounts) ListAccounts(_ context.Context, _ ledger.AccountFilter) ([]*ledger.Account, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]*ledger.Account, 0, len(f.accts))
+	for _, a := range f.accts {
+		out = append(out, a)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out, nil
+}
+
 type fakePostings struct {
 	entries []*ledger.JournalEntry
 	err     error
@@ -115,6 +128,18 @@ type fakeAudit struct {
 func (f *fakeAudit) Record(_ context.Context, l *audit.AuditLog) error {
 	f.logs = append(f.logs, l)
 	return nil
+}
+
+func (f *fakeAudit) ListRecent(_ context.Context, module string, limit int) ([]*audit.AuditLog, error) {
+	var out []*audit.AuditLog
+	// newest-first (records are appended chronologically)
+	for i := len(f.logs) - 1; i >= 0 && len(out) < limit; i-- {
+		if module != "" && f.logs[i].Module != module {
+			continue
+		}
+		out = append(out, f.logs[i])
+	}
+	return out, nil
 }
 
 // --- helpers ----------------------------------------------------------------
@@ -676,6 +701,152 @@ func TestImportBalances(t *testing.T) {
 		t.Fatal("import must audit (R13)")
 	}
 	_ = repo
+}
+
+func TestImportBalances_TemplateVersionRejected(t *testing.T) {
+	svc, _, _, _, _, fac, _, _, _, _ := newService(t)
+	ctx := context.Background()
+	fac.accts["1111"] = leafAccount("1111")
+	if _, err := svc.Initialize(ctx, &appsetup.InitializeRequest{
+		Profile: validProfile(), Regime: "TT99-2025", FiscalYearStart: "2026-01-01",
+		SeedAccounts: true, OpenPeriods: true,
+	}, "user-1"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	bad := [][]string{
+		{"account", "object", "object_code", "debit", "credit"}, // v2 renamed column
+		{"1111", "", "", "100", ""},
+	}
+	if _, err := svc.ImportBalances(ctx, bad, "user-1", true); !errors.Is(err, setup.ErrInvalidImport) {
+		t.Fatalf("wrong header: err = %v, want ErrInvalidImport", err)
+	}
+	badOrder := [][]string{
+		{"debit", "credit", "account", "object_type", "object_code"}, // shuffled
+		{"100", "", "1111", "", ""},
+	}
+	if _, err := svc.ImportBalances(ctx, badOrder, "user-1", true); !errors.Is(err, setup.ErrInvalidImport) {
+		t.Fatalf("shuffled header: err = %v, want ErrInvalidImport", err)
+	}
+	// header tolerates case/space differences but not missing columns
+	if _, err := svc.ImportBalances(ctx, [][]string{{"account", "object_type", "object_code", "debit"}}, "user-1", true); !errors.Is(err, setup.ErrInvalidImport) {
+		t.Fatalf("short header: err = %v, want ErrInvalidImport", err)
+	}
+}
+
+func TestImportBalances_PersistsJobReport(t *testing.T) {
+	svc, _, _, _, _, fac, _, _, _, _ := newService(t)
+	ctx := context.Background()
+	fac.accts["1111"] = leafAccount("1111")
+	fac.accts["331"] = leafAccount("331")
+	if _, err := svc.Initialize(ctx, &appsetup.InitializeRequest{
+		Profile: validProfile(), Regime: "TT99-2025", FiscalYearStart: "2026-01-01",
+		SeedAccounts: true, OpenPeriods: true,
+	}, "user-1"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	rows := [][]string{
+		{"account", "object_type", "object_code", "debit", "credit"},
+		{"1111", "", "", "1000000", ""},
+		{"9999", "", "", "1", ""},
+	}
+	res, err := svc.ImportBalances(ctx, rows, "user-1", true)
+	if err != nil {
+		t.Fatalf("dry-run: %v", err)
+	}
+	if res.JobID == "" {
+		t.Fatal("dry-run must persist a job")
+	}
+	job, err := svc.GetImportReport(ctx, res.JobID)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if job.ID != res.JobID || job.Status != setup.JobErrored || job.Total != 2 || len(job.Errors) != 1 {
+		t.Fatalf("report mismatch: %+v", job)
+	}
+	if !job.DryRun || job.CreatedBy != "user-1" {
+		t.Fatalf("report metadata: dry_run=%v created_by=%s", job.DryRun, job.CreatedBy)
+	}
+	// commit of the same file gets its own job id (dry-run/commit never collide)
+	commit, err := svc.ImportBalances(ctx, [][]string{
+		{"account", "object_type", "object_code", "debit", "credit"},
+		{"1111", "", "", "1000000", ""},
+	}, "user-1", false)
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if commit.JobID == res.JobID {
+		t.Fatal("commit and dry-run job ids must differ")
+	}
+	cjob, err := svc.GetImportReport(ctx, commit.JobID)
+	if err != nil {
+		t.Fatalf("commit report: %v", err)
+	}
+	if cjob.DryRun || cjob.Created != 1 || cjob.Status != setup.JobOK {
+		t.Fatalf("commit report mismatch: %+v", cjob)
+	}
+	if _, err := svc.GetImportReport(ctx, "nope"); !errors.Is(err, setup.ErrImportNotFound) {
+		t.Fatalf("unknown job: err = %v, want ErrImportNotFound", err)
+	}
+}
+
+func TestPreviewAccounts(t *testing.T) {
+	svc, _, _, _, _, fac, _, _, _, _ := newService(t)
+	ctx := context.Background()
+	fac.accts["1111"] = leafAccount("1111")
+	fac.accts["331"] = &ledger.Account{Code: "331", Name: "Phải trả người bán", Status: ledger.AccountActive, AllowPost: true, Level: 2, Type: ledger.AccountLiability}
+
+	preview, err := svc.PreviewAccounts(ctx)
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	if preview.Total != 2 || len(preview.Accounts) != 2 {
+		t.Fatalf("preview counts: %+v", preview)
+	}
+	// sorted by code
+	if preview.Accounts[0].Code != "1111" || preview.Accounts[1].Code != "331" {
+		t.Fatalf("preview order: %+v", preview.Accounts)
+	}
+	if preview.Accounts[1].Name != "Phải trả người bán" || preview.Accounts[1].Type != "liability" || !preview.Accounts[1].Postable {
+		t.Fatalf("preview fields: %+v", preview.Accounts[1])
+	}
+
+	// seam failure surfaces
+	fac.err = errors.New("boom")
+	if _, err := svc.PreviewAccounts(ctx); err == nil {
+		t.Fatal("preview must surface seam error")
+	}
+}
+
+func TestAuditTrail(t *testing.T) {
+	svc, _, _, _, _, _, _, fa, _, _ := newService(t)
+	ctx := context.Background()
+	if _, err := svc.Initialize(ctx, &appsetup.InitializeRequest{
+		Profile: validProfile(), Regime: "TT99-2025", FiscalYearStart: "2026-01-01",
+		SeedAccounts: true, OpenPeriods: true,
+	}, "user-1"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	trail, err := svc.AuditTrail(ctx, "setup", 20)
+	if err != nil {
+		t.Fatalf("trail: %v", err)
+	}
+	if len(trail) == 0 {
+		t.Fatal("init must leave a setup audit trail (R13)")
+	}
+	// newest-first, module-filtered, all entries setup.*
+	for _, l := range trail {
+		if l.Module != "setup" {
+			t.Fatalf("trail leaked module %q", l.Module)
+		}
+		if l.Action == "" || l.UserCode == "" {
+			t.Fatalf("trail entry incomplete: %+v", l)
+		}
+	}
+	if len(fa.logs) > 0 && trail[0].Action != fa.logs[len(fa.logs)-1].Action {
+		t.Fatalf("trail must be newest-first: got %q, want %q", trail[0].Action, fa.logs[len(fa.logs)-1].Action)
+	}
 }
 
 func TestUpdateProfileGuarded(t *testing.T) {

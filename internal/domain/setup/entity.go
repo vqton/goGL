@@ -189,6 +189,45 @@ type ImportResult struct {
 	Updated int        `json:"updated"`
 	Errors  []RowError `json:"errors,omitempty"`
 	DryRun  bool       `json:"dry_run"`
+	JobID   string     `json:"job_id,omitempty"`
+}
+
+// ImportJobStatus is the overall outcome of a persisted import job.
+type ImportJobStatus string
+
+const (
+	JobOK      ImportJobStatus = "ok"
+	JobErrored ImportJobStatus = "errors"
+)
+
+// ImportJob is the persisted per-row report of one import upload (spec §5.4:
+// "job report (N ok, M errors row+reason)"). Saved under a deterministic
+// content hash so re-uploading the same file overwrites its own report.
+type ImportJob struct {
+	ID        string          `json:"id"`
+	Status    ImportJobStatus `json:"status"`
+	Total     int             `json:"total"`
+	Created   int             `json:"created"`
+	Updated   int             `json:"updated"`
+	Errors    []RowError      `json:"errors,omitempty"`
+	DryRun    bool            `json:"dry_run"`
+	CreatedBy string          `json:"created_by,omitempty"`
+	CreatedAt string          `json:"created_at,omitempty"`
+}
+
+// PreviewAccount is one row of the step-3 COA preview (read-only, from the
+// ledger seam — the wizard shows what was seeded before balances are entered).
+type PreviewAccount struct {
+	Code     string `json:"code"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Postable bool   `json:"postable"`
+}
+
+// AccountPreview is the full step-3 preview payload.
+type AccountPreview struct {
+	Total    int              `json:"total"`
+	Accounts []PreviewAccount `json:"accounts"`
 }
 
 // Repository persists the setup module's own data: the single company
@@ -198,8 +237,11 @@ type Repository interface {
 	SaveProfile(ctx context.Context, p *CompanyProfile) error
 	GetProfile(ctx context.Context, id string) (*CompanyProfile, error)
 	SaveBalance(ctx context.Context, b *OpeningBalance) error
+	SaveBalances(ctx context.Context, bs []*OpeningBalance) error
 	ListBalances(ctx context.Context, accountCode string) ([]*OpeningBalance, error)
 	DeleteBalance(ctx context.Context, id string) error
 	GetStatus(ctx context.Context) (SetupStatus, error)
 	SetStatus(ctx context.Context, s SetupStatus) error
+	SaveImportJob(ctx context.Context, j *ImportJob) error
+	GetImportJob(ctx context.Context, id string) (*ImportJob, error)
 }

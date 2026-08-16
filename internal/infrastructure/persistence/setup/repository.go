@@ -68,6 +68,33 @@ func (r *sqliteRepository) SaveBalance(ctx context.Context, b *setup.OpeningBala
 	return nil
 }
 
+// SaveBalances persists a batch of opening balances in one transaction (spec
+// §5.4: "one tx per batch"). A failure rolls the whole batch back — import
+// rows are never half-applied.
+func (r *sqliteRepository) SaveBalances(ctx context.Context, bs []*setup.OpeningBalance) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("setup: begin balance tx: %w", err)
+	}
+	defer tx.Rollback()
+	for _, b := range bs {
+		doc, err := json.Marshal(b)
+		if err != nil {
+			return fmt.Errorf("setup: marshal balance: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO opening_balances (id, data) VALUES (?, ?)
+			 ON CONFLICT(id) DO UPDATE SET data = excluded.data`,
+			b.ID, string(doc)); err != nil {
+			return fmt.Errorf("setup: save balance: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("setup: commit balance tx: %w", err)
+	}
+	return nil
+}
+
 func (r *sqliteRepository) ListBalances(ctx context.Context, accountCode string) ([]*setup.OpeningBalance, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT data FROM opening_balances
@@ -135,4 +162,35 @@ func (r *sqliteRepository) SetStatus(ctx context.Context, s setup.SetupStatus) e
 		return fmt.Errorf("setup: set status: %w", err)
 	}
 	return nil
+}
+
+func (r *sqliteRepository) SaveImportJob(ctx context.Context, j *setup.ImportJob) error {
+	doc, err := json.Marshal(j)
+	if err != nil {
+		return fmt.Errorf("setup: marshal import job: %w", err)
+	}
+	if _, err := r.db.ExecContext(ctx,
+		`INSERT INTO opening_balance_imports (id, data) VALUES (?, ?)
+		 ON CONFLICT(id) DO UPDATE SET data = excluded.data`,
+		j.ID, string(doc)); err != nil {
+		return fmt.Errorf("setup: save import job: %w", err)
+	}
+	return nil
+}
+
+func (r *sqliteRepository) GetImportJob(ctx context.Context, id string) (*setup.ImportJob, error) {
+	var data string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT data FROM opening_balance_imports WHERE id = ?`, id).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, setup.ErrImportNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("setup: get import job: %w", err)
+	}
+	var j setup.ImportJob
+	if err := json.Unmarshal([]byte(data), &j); err != nil {
+		return nil, fmt.Errorf("setup: decode import job: %w", err)
+	}
+	return &j, nil
 }

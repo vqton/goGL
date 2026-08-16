@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,6 +93,17 @@ func (f *fakeAccounts) GetAccountByCode(_ context.Context, code string) (*ledger
 	return a, nil
 }
 
+func (f *fakeAccounts) ListAccounts(_ context.Context, _ ledger.AccountFilter) ([]*ledger.Account, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]*ledger.Account, 0, len(f.accts))
+	for _, a := range f.accts {
+		out = append(out, a)
+	}
+	return out, nil
+}
+
 type fakePostings struct {
 	entries []*ledger.JournalEntry
 	err     error
@@ -104,6 +116,9 @@ func (f *fakePostings) ListEntries(_ context.Context, _ ledger.EntryFilter) ([]*
 type fakeAudit struct{ err error }
 
 func (f *fakeAudit) Record(_ context.Context, _ *audit.AuditLog) error { return f.err }
+func (f *fakeAudit) ListRecent(context.Context, string, int) ([]*audit.AuditLog, error) {
+	return nil, f.err
+}
 
 // --- helpers ----------------------------------------------------------------
 
@@ -497,10 +512,71 @@ func TestImportBalances_InvalidRow422(t *testing.T) {
 	}
 }
 
-func TestImportReport_Placeholder501(t *testing.T) {
+func TestImportReport_PersistedJob(t *testing.T) {
 	h := newHarness(t)
-	w := h.do(http.MethodGet, "/api/v1/setup/opening-balances/import/job-1/report", "")
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body: %s", w.Code, w.Body.String())
+	h.do(http.MethodPost, "/api/v1/setup/initialize", initializeBody())
+
+	rows := `{"dry_run":true,"rows":[
+		["account","object_type","object_code","debit","credit"],
+		["1111","","","1000000",""],
+		["9999","","","1",""]
+	]}`
+	w := h.do(http.MethodPost, "/api/v1/setup/opening-balances/import", rows)
+	if w.Code != http.StatusOK {
+		t.Fatalf("import status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+	var res setup.ImportResult
+	_ = json.Unmarshal(w.Body.Bytes(), &res)
+	if res.JobID == "" {
+		t.Fatal("import must return a persisted job id")
+	}
+
+	// report endpoint serves the same per-row errors later
+	w = h.do(http.MethodGet, "/api/v1/setup/opening-balances/import/"+res.JobID+"/report", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("report status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+	var job setup.ImportJob
+	_ = json.Unmarshal(w.Body.Bytes(), &job)
+	if job.ID != res.JobID || job.Status != setup.JobErrored || job.Total != 2 || len(job.Errors) != 1 {
+		t.Fatalf("report mismatch: %+v", job)
+	}
+	if !job.DryRun || job.CreatedBy != "ketoan" {
+		t.Fatalf("report metadata: dry_run=%v created_by=%s", job.DryRun, job.CreatedBy)
+	}
+
+	// unknown job -> 404
+	w = h.do(http.MethodGet, "/api/v1/setup/opening-balances/import/nope/report", "")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unknown job status = %d, want 404", w.Code)
+	}
+}
+
+func TestImportReport_ErrorsCSV(t *testing.T) {
+	h := newHarness(t)
+	h.do(http.MethodPost, "/api/v1/setup/initialize", initializeBody())
+
+	rows := `{"dry_run":true,"rows":[
+		["account","object_type","object_code","debit","credit"],
+		["1111","","","1000000",""],
+		["9999","","","1",""]
+	]}`
+	w := h.do(http.MethodPost, "/api/v1/setup/opening-balances/import", rows)
+	var res setup.ImportResult
+	_ = json.Unmarshal(w.Body.Bytes(), &res)
+
+	w = h.do(http.MethodGet, "/api/v1/setup/opening-balances/import/"+res.JobID+"/errors.csv", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("errors.csv status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/csv; charset=utf-8" {
+		t.Fatalf("content-type = %q", ct)
+	}
+	if cd := w.Header().Get("Content-Disposition"); !strings.HasPrefix(cd, "attachment;") {
+		t.Fatalf("content-disposition = %q", cd)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "row,column,message") || !strings.Contains(body, "account does not exist") {
+		t.Fatalf("errors.csv must contain header and failed-row reason: %q", body)
 	}
 }

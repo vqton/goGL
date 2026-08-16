@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -95,6 +96,18 @@ func (f *fakeAccounts) GetAccountByCode(_ context.Context, code string) (*ledger
 	return a, nil
 }
 
+func (f *fakeAccounts) ListAccounts(_ context.Context, _ ledger.AccountFilter) ([]*ledger.Account, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]*ledger.Account, 0, len(f.accts))
+	for _, a := range f.accts {
+		out = append(out, a)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out, nil
+}
+
 type fakePostings struct {
 	entries []*ledger.JournalEntry
 	err     error
@@ -104,9 +117,32 @@ func (f *fakePostings) ListEntries(_ context.Context, _ ledger.EntryFilter) ([]*
 	return f.entries, f.err
 }
 
-type fakeAudit struct{ err error }
+type fakeAudit struct {
+	err  error
+	logs []*audit.AuditLog
+}
 
-func (f *fakeAudit) Record(_ context.Context, _ *audit.AuditLog) error { return f.err }
+func (f *fakeAudit) Record(_ context.Context, l *audit.AuditLog) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.logs = append(f.logs, l)
+	return nil
+}
+
+func (f *fakeAudit) ListRecent(_ context.Context, module string, limit int) ([]*audit.AuditLog, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	var out []*audit.AuditLog
+	for i := len(f.logs) - 1; i >= 0 && len(out) < limit; i-- {
+		if module != "" && f.logs[i].Module != module {
+			continue
+		}
+		out = append(out, f.logs[i])
+	}
+	return out, nil
+}
 
 // --- helpers ----------------------------------------------------------------
 
@@ -234,10 +270,34 @@ func TestWizard_AfterInitShowsSteps(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 	body := w.Body.String()
-	for _, want := range []string{"Trạng thái hệ thống", "Đang nhập số dư đầu kỳ", "Số dư đầu kỳ", "Nhập số dư đầu kỳ"} {
+	for _, want := range []string{"Trạng thái hệ thống", "Đang nhập số dư đầu kỳ", "Số dư đầu kỳ", "Nhập số dư đầu kỳ", "Nhật ký hoạt động"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("wizard body missing %q", want)
 		}
+	}
+	// R13: the audit trail section shows at least one setup action
+	if !strings.Contains(body, "initialize.profile") {
+		t.Errorf("wizard trail must list setup actions, got body head:\n%s", body[:500])
+	}
+}
+
+func TestAccountsPage_ListsSeededChart(t *testing.T) {
+	h := newHarness(t)
+	mustInit(t, h)
+	w := h.get("/setup/accounts", "ketoan")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	for _, want := range []string{"Bước 3 · Sơ đồ tài khoản", "TK đã tạo (4)", "1111", "5111", "postable", "Đến bước 4"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("accounts body missing %q", want)
+		}
+	}
+	// wizard links to the preview from the step list
+	w = h.get("/setup", "ketoan")
+	if !strings.Contains(w.Body.String(), "/setup/accounts") {
+		t.Error("wizard must link to the accounts preview")
 	}
 }
 

@@ -52,6 +52,8 @@ func TestSeedPolicies_SetupRoles(t *testing.T) {
 		{"ketoan deletes balance", "ketoan", "/api/v1/setup/opening-balances/b-ob1", "DELETE", true},
 		{"ketoan imports", "ketoan", "/api/v1/setup/opening-balances/import", "POST", true},
 		{"ketoan reads import report", "ketoan", "/api/v1/setup/opening-balances/import/job-1/report", "GET", true},
+		{"ketoan reads import errors.csv", "ketoan", "/api/v1/setup/opening-balances/import/job-1/errors.csv", "GET", true},
+		{"ketoan cannot read other import files", "ketoan", "/api/v1/setup/opening-balances/import/job-1/other.csv", "GET", false},
 		{"ketoan cannot initialize", "ketoan", "/api/v1/setup/initialize", "POST", false},
 		{"ketoan cannot lock", "ketoan", "/api/v1/setup/opening-balances/lock", "POST", false},
 		{"ketoan cannot reopen", "ketoan", "/api/v1/setup/opening-balances/reopen", "POST", false},
@@ -67,6 +69,7 @@ func TestSeedPolicies_SetupRoles(t *testing.T) {
 		{"kttruong reopens", "kttruong", "/api/v1/setup/opening-balances/reopen", "POST", true},
 		{"kttruong activates", "kttruong", "/api/v1/setup/activate", "POST", true},
 		{"kttruong reads report", "kttruong", "/api/v1/setup/opening-balances/import/job-1/report", "GET", true},
+		{"kttruong reads import errors.csv", "kttruong", "/api/v1/setup/opening-balances/import/job-1/errors.csv", "GET", true},
 
 		// admin has `* *`.
 		{"admin initializes", "admin", "/api/v1/setup/initialize", "POST", true},
