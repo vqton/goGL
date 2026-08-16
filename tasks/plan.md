@@ -1,35 +1,58 @@
-# Implementation Plan: Cashier (Thủ quỹ) Module
+# Implementation Plan: goGL module portfolio
 
 ## Overview
-Build the goGL Cashier capability: statutory-compliant cash receipt/payment lifecycle (phiếu thu/chi → duyệt → Ghi sổ → sổ quỹ → đối chiếu) with role separation, per TT 99/2025/TT-BTC (effective 01/01/2026). Currently `cash` is a 100% stub — see `docs/cashier/00-verdict.md`.
+Build goGL — Vietnamese accounting/ERP (module goGL, Go 1.26.4, Gin + SQLite,
+JSON-doc tables, Casbin RBAC). Each feature module is a 4-layer vertical
+(domain / application / persistence / http) wired in `cmd/server/main.go`.
+Deliverables per module follow the same doc set in `docs/<m>/` (`00-verdict`
+… `06-roadmap`, plus `08-security`/`09-review` for hardened modules) and task
+lists in `tasks/<m>-todo.md`.
+
+## Status (2026-08-16)
+- **PROD-pilot, done:** cash (docs/cashier, verdict READY) and ledger
+  (docs/ledger) — TT 99/2025 statutory forms, sequences, periods, audit.
+- **Implemented, docs as target-state:** masterdata (docs/masterdata,
+  vertical in 51eec6b — `SeedAccounts` Phụ lục 2 TT 99/2025, `SetRegime`
+  TT 99↔TT 133, lifecycle, merge, CSV import).
+- **Next vertical: setup (docs/setup)** — first-run gateway: company profile
+  (statutory identity), regime + 12-month fiscal year, COA seed + period open
+  via masterdata/ledger, balanced opening balances (ΣNợ=ΣCó) with per-đối
+  tượng detail, status machine + lock/reopen, CSV import. Plan:
+  `docs/setup/06-roadmap.md`, tasks: `tasks/setup-todo.md`.
+- **Still stubs (24 modules total, 20 remain):** audit, backup, bank, budget,
+  contract, costing, document, fixedasset, inventory, invoice, options,
+  payroll, purchase, reporting, sales, system, task, tax, tools, user.
 
 ## Architecture decisions
-- **Single `cash` module, role-gated** (not two modules) — minimizes churn; revisit if SME licensing demands separate Thủ quỹ.
-- **Controls-first**: exact-decimal money, migrations, RBAC policies, audit seam before any feature.
-- **Posting before UI**: behavior drives screens; S07-DN/S07a-DN are generated, never edited.
-- **Ledger seam**: cash posts TK111 via interface to `ledger` (stub impl OK, documented).
-- **Statutory forms per TT99**, not TT200/2014.
+- **Controls-first**: exact-decimal money (`core.Money` int64 VND), migrations,
+  RBAC policies, audit seam before any feature.
+- **No two sources of truth**: masterdata owns sơ đồ tài khoản + regime;
+  ledger/cash/setup orchestrate via Go seams, never seed a private chart.
+- **Setup is the orchestrator** of masterdata/ledger/audit, not a data owner.
+- **Statutory forms per TT 99/2025**, not TT 200/2014 (superseded 01/01/2026);
+  TT 133/2016 kept as SME variant; NĐ 254/2026 for HĐĐT identity.
+- **Posting before UI**; stat forms generated, never edited.
+- **`X-User-Id` dev seam** for authz subject; fail closed when missing.
 
-## Phases (see tasks/todo.md)
-- Phase 0 Foundation: money type, migrations, RBAC, audit seam
-- Phase 1 Funds + voucher lifecycle (draft→approved)
-- Phase 2 Cashier posting + cash book (core value)
-- Phase 3 Reconciliation, void, correction (Điều 30)
-- Phase 4 Reports, print templates, UX
-- Phase 5 Hardening
+## Phases (per-module roadmap; setup next)
+- Phase 0 Foundation: money/migrations/RBAC/audit + status machine
+- Phase 1 Core lifecycle + orchestration seams
+- Phase 2 Compliance slices + balances/books
+- Phase 3 Import/export + reports + UX
+- Phase 4 Integration hardening + regression
+- Phase 5 Statutory verification + PROD pilot
 
 ## Checkpoints
-After each phase: `go build ./...`, `go vet ./...`, `go test ./...` green; authz tests pass.
+After each phase: `go build ./...`, `go vet ./...`, `go test ./...` green;
+authz tests pass; coverage ≥ 80% on service+repo.
 
 ## Risks
-- `core.Money` float64 change ripples across 24 modules → Phase 0 isolation
-- Ledger is stub → seam + mock
-- SQLite contention on numbering/posting → sequence table + single tx
-- Statutory drift → isolated templates + golden tests
-- `X-User-Id` dev seam auth → app-level ownership checks; flag in hardening
-
-## Open questions
-1. One module vs split → default single role-gated
-2. FX difference engine → v2 (multi-currency funds in v1)
-3. Numbering per fund/period → confirmed
-4. Vàng tiền → defer v2
+- Second source of truth for COA/regime (setup vs masterdata) → setup only
+  orchestrates masterdata seams.
+- Non-idempotent init double-seeds on crash-resume → status row + idempotent
+  upstreams + property tests.
+- Unbalanced opening balances slip into ledger → ΣNợ=ΣCó enforced at entry,
+  check, lock (R9).
+- `core.Money` float64 regression → int64 minor units only.
+- SQLite contention on numbering/posting → sequence tables + single tx.
+- Statutory drift → isolated templates + golden fixtures from official PDFs.

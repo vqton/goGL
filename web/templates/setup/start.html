@@ -1,0 +1,91 @@
+{{ define "setup_start" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "setup_shell_head" . }}<title>Thông tin doanh nghiệp — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "setup_shell_nav" . }}
+<main class="mx-auto max-w-3xl px-4 py-8">
+  <h1 class="text-2xl font-bold tracking-tight">Bước 1–3 · Thông tin doanh nghiệp &amp; Chế độ kế toán</h1>
+  <p class="mt-1 text-sm text-slate-500">Bạn có thể quay lại lưu nhiều lần — quá trình khởi tạo là lũy tiến (idempotent).</p>
+  {{ template "setup_shell_flash" . }}
+  {{ $p := .View.Profile }}
+  <form method="post" action="/setup/start" class="mt-4 space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <fieldset class="space-y-4">
+      <legend class="text-sm font-semibold uppercase tracking-wider text-slate-500">Thông tin doanh nghiệp</legend>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block text-sm sm:col-span-2">
+          <span class="mb-1 block font-medium text-slate-700">Tên công ty *</span>
+          <input type="text" name="name" required value="{{ if $p }}{{ $p.Name }}{{ end }}" placeholder="Theo giấy chứng nhận ĐKDN" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+        <label class="block text-sm sm:col-span-2">
+          <span class="mb-1 block font-medium text-slate-700">Tên tiếng Anh</span>
+          <input type="text" name="name_en" value="{{ if $p }}{{ $p.NameEN }}{{ end }}" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-slate-700">MST *</span>
+          <input type="text" name="tax_code" required value="{{ if $p }}{{ $p.TaxCode }}{{ end }}" placeholder="0101234567" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-slate-700">Mã ĐVQHNS</span>
+          <input type="text" name="budget_unit_code" value="{{ if $p }}{{ $p.BudgetUnitCode }}{{ end }}" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+        <label class="block text-sm sm:col-span-2">
+          <span class="mb-1 block font-medium text-slate-700">Địa chỉ trụ sở *</span>
+          <input type="text" name="address" required value="{{ if $p }}{{ $p.Address }}{{ end }}" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-slate-700">Người đại diện theo PL *</span>
+          <input type="text" name="legal_representative" required value="{{ if $p }}{{ $p.LegalRepresentative }}{{ end }}" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-slate-700">Loại hình</span>
+          <input type="text" name="company_type" value="{{ if $p }}{{ $p.CompanyType }}{{ end }}" placeholder="TNHH 2TV" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+        <label class="block text-sm sm:col-span-2">
+          <span class="mb-1 block font-medium text-slate-700">Ngành nghề</span>
+          <input type="text" name="industry" value="{{ if $p }}{{ $p.Industry }}{{ end }}" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="space-y-4 border-t border-slate-100 pt-5">
+      <legend class="text-sm font-semibold uppercase tracking-wider text-slate-500">Chế độ kế toán &amp; Năm tài chính</legend>
+      <div class="space-y-2">
+        <label class="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm">
+          <input type="radio" name="regime" value="TT99-2025" required {{ if or (eq .View.Regime "TT99-2025") (eq .View.Regime "") }}checked{{ end }} class="mt-0.5">
+          <span><span class="font-medium text-slate-800">Thông tư 99/2025/TT-BTC</span> <span class="text-slate-500">(khuyến nghị)</span></span>
+        </label>
+        <label class="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm">
+          <input type="radio" name="regime" value="TT133-2016" {{ if eq .View.Regime "TT133-2016" }}checked{{ end }} class="mt-0.5">
+          <span><span class="font-medium text-slate-800">Thông tư 133/2016/TT-BTC</span> <span class="text-slate-500">(SME)</span></span>
+        </label>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-slate-700">Năm tài chính bắt đầu *</span>
+          <input type="date" name="fiscal_year_start" required value="{{ if $p }}{{ $p.FiscalYearStart }}{{ end }}" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-slate-700">Ngày bắt đầu hạch toán</span>
+          <input type="date" name="books_start_date" value="{{ if $p }}{{ $p.BooksStartDate }}{{ end }}" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+        </label>
+      </div>
+      <div class="space-y-2 text-sm">
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="seed_accounts" {{ if not $p }}checked{{ end }} class="h-4 w-4">
+          <span>Tạo sơ đồ tài khoản (Phụ lục 2)</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="open_periods" {{ if not $p }}checked{{ end }} class="h-4 w-4">
+          <span>Mở 12 kỳ kế toán của năm tài chính</span>
+        </label>
+      </div>
+      <p class="text-xs text-slate-500">Đơn vị tiền tệ kế toán: VND (theo TT 99 Điều 5 — cố định v1).</p>
+    </fieldset>
+
+    <div class="flex justify-end gap-2">
+      <a href="/setup" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-100">← Quay lại</a>
+      <button type="submit" class="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700">Lưu &amp; Tiếp tục</button>
+    </div>
+  </form>
+</main>
+</body></html>{{ end }}

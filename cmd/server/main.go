@@ -87,6 +87,7 @@ import (
 	httpweb "goGL/internal/interfaces/http/web"
 	httpcashweb "goGL/internal/interfaces/http/webcash"
 	httpwebledger "goGL/internal/interfaces/http/webledger"
+	httpwebsetup "goGL/internal/interfaces/http/websetup"
 )
 
 func main() {
@@ -118,6 +119,13 @@ func main() {
 		log.Printf("seeded %d default ledger accounts", n)
 	}
 
+	// Cross-module seams for the setup ORCHESTRATOR (docs/setup §10): the
+	// concrete masterdata / ledger / audit services satisfy the narrow setup
+	// interfaces structurally.
+	auditSvc := audit.NewService(persaudit.NewSqliteRepository(sqlDB))
+	masterdataSvc := masterdata.NewService(persmasterdata.NewSqliteRepository(sqlDB))
+	ledgerSvc := ledger.NewService(ledgerRepo)
+
 	r := gin.Default()
 	httpweb.NewHandler().Register(r)
 	v1 := r.Group("/api/v1")
@@ -130,7 +138,6 @@ func main() {
 	)
 	httpcashweb.NewHandler(cashSvc, cfg.Authorization.IdentityHeader).Register(r)
 
-	ledgerSvc := ledger.NewService(ledgerRepo)
 	httpwebledger.NewHandler(ledgerSvc, cfg.Authorization.IdentityHeader).Register(r)
 	if cfg.Authorization.Enabled {
 		v1.Use(authorization.AuthorizationMiddleware(
@@ -154,8 +161,21 @@ func main() {
 	httpcontract.NewHandler(contract.NewService(perscontract.NewSqliteRepository(sqlDB))).Register(v1)
 	httpbudget.NewHandler(budget.NewService(persbudget.NewSqliteRepository(sqlDB))).Register(v1)
 	httpreporting.NewHandler(reporting.NewService(persreporting.NewSqliteRepository(sqlDB))).Register(v1)
-	httpsetup.NewHandler(setup.NewService(perssetup.NewSqliteRepository(sqlDB))).Register(v1)
-	httpmasterdata.NewHandler(masterdata.NewService(persmasterdata.NewSqliteRepository(sqlDB))).Register(v1)
+	setupSvc := setup.NewService(
+		perssetup.NewSqliteRepository(sqlDB),
+		setup.Dependencies{
+			Regime:   masterdataSvc,
+			Seeder:   masterdataSvc,
+			Objects:  masterdataSvc,
+			Periods:  ledgerSvc,
+			Accounts: ledgerSvc,
+			Postings: ledgerSvc,
+			Audit:    auditSvc,
+		},
+	)
+	httpsetup.NewHandler(setupSvc, cfg.Authorization.IdentityHeader).Register(v1)
+	httpwebsetup.NewHandler(setupSvc, cfg.Authorization.IdentityHeader).Register(r)
+	httpmasterdata.NewHandler(masterdataSvc).Register(v1)
 	httpuser.NewHandler(user.NewService(persuser.NewSqliteRepository(sqlDB))).Register(v1)
 	httpsystem.NewHandler(system.NewService(perssystem.NewSqliteRepository(sqlDB))).Register(v1)
 	httpoptions.NewHandler(appoptions.NewService(persoptions.NewSqliteRepository(sqlDB))).Register(v1)

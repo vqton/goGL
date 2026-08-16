@@ -33,6 +33,7 @@ var tables = []string{
 	"financial_reports",
 	"company_profiles",
 	"opening_balances",
+	"setup_status",
 	"catalog_items",
 	"users",
 	"roles",

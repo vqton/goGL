@@ -22,6 +22,7 @@ const DefaultRegime = "TT99-2025"
 
 var supportedRegimes = map[string]bool{
 	"TT99-2025":  true,
+	"TT133-2016": true,
 	"TT200-2014": true,
 }
 

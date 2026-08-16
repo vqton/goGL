@@ -1,0 +1,11 @@
+{{ define "setup_error" }}<!DOCTYPE html>
+<html lang="vi">
+<head>{{ template "setup_shell_head" . }}<title>Lỗi — goGL</title></head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+{{ template "setup_shell_nav" . }}
+<main class="mx-auto max-w-2xl px-4 py-16 text-center">
+  <h1 class="text-2xl font-bold tracking-tight text-slate-900">Đã có lỗi xảy ra</h1>
+  <p class="mt-2 text-slate-600">{{ .Err }}</p>
+  <a href="/setup" class="mt-6 inline-block rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700">← Về trang khởi tạo</a>
+</main>
+</body></html>{{ end }}

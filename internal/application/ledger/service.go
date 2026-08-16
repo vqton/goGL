@@ -25,6 +25,7 @@ type Service interface {
 	CreateAccount(ctx context.Context, actor string, a *ledger.Account) error
 	UpdateAccount(ctx context.Context, actor string, a *ledger.Account) error
 	GetAccount(ctx context.Context, id string) (*ledger.Account, error)
+	GetAccountByCode(ctx context.Context, code string) (*ledger.Account, error)
 	ListAccounts(ctx context.Context, f ledger.AccountFilter) ([]*ledger.Account, error)
 
 	ListPeriods(ctx context.Context) ([]*ledger.AccountingPeriod, error)
@@ -591,6 +592,10 @@ func (s *service) UpdateAccount(ctx context.Context, actor string, a *ledger.Acc
 
 func (s *service) GetAccount(ctx context.Context, id string) (*ledger.Account, error) {
 	return s.repo.GetAccount(ctx, id)
+}
+
+func (s *service) GetAccountByCode(ctx context.Context, code string) (*ledger.Account, error) {
+	return s.repo.GetAccountByCode(ctx, code)
 }
 
 func (s *service) ListAccounts(ctx context.Context, f ledger.AccountFilter) ([]*ledger.Account, error) {
