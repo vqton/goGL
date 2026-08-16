@@ -51,7 +51,7 @@ Anonymous → fail closed (existing authz dev seam via `X-User-Id`).
 - **TT 99/2025/TT-BTC** (in force 01/01/2026): sổ kế toán forms per Phụ lục III; principles: ghi sổ theo chứng từ, số liệu khớp chứng từ, không tẩy xóa, sửa sai bằng bút toán điều chỉnh/đảo bút toán.
 - **Luật Kế toán 2015, Nghị định 174/2016**: sổ kế toán bắt buộc (Sổ Nhật ký chung, Sổ Cái); ghi sổ đúng thời điểm, kịp thời; lưu trữ.
 - **TT 133/2016** (SME): optional regime switch later.
-- **Luật Quản lý thuế 2019, Nghị định 123/2020**: books reconcile to tax declarations; monthly Sổ Cái / Bảng cân đối số phát sinh supports thuế GTGT/ TNDN filing.
+- **Luật Quản lý thuế 108/2025/QH15** (eff 01/07/2026; replaces Luật QLT 2019; NĐ 123/2020 detail guidance superseded by NĐ 254/2026): books reconcile to tax declarations; monthly Sổ Cái / Bảng cân đối số phát sinh supports thuế GTGT/ TNDN filing.
 
 ## 6. Non-functional requirements
 

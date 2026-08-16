@@ -60,8 +60,10 @@ reliably flow into the GL. Concretely (all verified by tests + demo):
   integration context; not in scope for the ledger core.
 - **Luật Kế toán 2015** + **Nghị định 174/2016/NĐ-CP** — principles: ghi sổ kịp
   thời, đầy đủ, rõ ràng, trung thực; sổ kế toán không tẩy xóa.
-- **Luật Quản lý thuế 2019** + **Nghị định 123/2020** — sổ sách làm cơ sở kê khai
-  thuế; books must reconcile with tax declarations.
+- **Luật Quản lý thuế 108/2025/QH15** (eff 01/07/2026; replaces Luật QLT 2019)
+  — sổ sách làm cơ sở kê khai thuế; books must reconcile with tax declarations.
+  (Nghị định 123/2020 detail guidance superseded by Nghị định 254/2026/NĐ-CP —
+  do not build to the old invoice/book form numbers.)
 
 ## 4. Competitor scan (all active and TT 99-ready in 2026)
 
