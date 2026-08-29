@@ -139,3 +139,132 @@ func (r *sqliteRepository) NextCode(ctx context.Context) (int64, error) {
 	}
 	return seq, nil
 }
+
+// --- DepreciationEntry repository ---
+
+type sqliteDepreciationRepo struct {
+	db *sql.DB
+}
+
+func NewSqliteDepreciationRepository(db *sql.DB) fixedasset.DepreciationEntryRepository {
+	return &sqliteDepreciationRepo{db: db}
+}
+
+func (r *sqliteDepreciationRepo) Create(ctx context.Context, e *fixedasset.DepreciationEntry) error {
+	data, err := json.Marshal(e)
+	if err != nil {
+		return fmt.Errorf("depreciation: marshal: %w", err)
+	}
+	_, err = r.db.ExecContext(ctx,
+		`INSERT INTO depreciation_entries (id, data) VALUES (?, ?)
+		 ON CONFLICT(id) DO UPDATE SET data = excluded.data`,
+		e.ID, string(data))
+	if err != nil {
+		return fmt.Errorf("depreciation: create: %w", err)
+	}
+	return nil
+}
+
+func (r *sqliteDepreciationRepo) FindByID(ctx context.Context, id string) (*fixedasset.DepreciationEntry, error) {
+	var data string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT data FROM depreciation_entries WHERE id = ?`, id).Scan(&data)
+	if err == sql.ErrNoRows {
+		return nil, fixedasset.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("depreciation: find: %w", err)
+	}
+	var e fixedasset.DepreciationEntry
+	if err := json.Unmarshal([]byte(data), &e); err != nil {
+		return nil, fmt.Errorf("depreciation: decode: %w", err)
+	}
+	return &e, nil
+}
+
+func (r *sqliteDepreciationRepo) Update(ctx context.Context, e *fixedasset.DepreciationEntry) error {
+	data, err := json.Marshal(e)
+	if err != nil {
+		return fmt.Errorf("depreciation: marshal: %w", err)
+	}
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE depreciation_entries SET data = ? WHERE id = ?`,
+		string(data), e.ID)
+	if err != nil {
+		return fmt.Errorf("depreciation: update: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fixedasset.ErrNotFound
+	}
+	return nil
+}
+
+func (r *sqliteDepreciationRepo) ListByAsset(ctx context.Context, assetID string) ([]*fixedasset.DepreciationEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT data FROM depreciation_entries WHERE json_extract(data, '$.asset_id') = ?
+		 ORDER BY json_extract(data, '$.period')`, assetID)
+	if err != nil {
+		return nil, fmt.Errorf("depreciation: list by asset: %w", err)
+	}
+	defer rows.Close()
+	return scanDepreciationEntries(rows)
+}
+
+func (r *sqliteDepreciationRepo) ListByPeriod(ctx context.Context, period string) ([]*fixedasset.DepreciationEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT data FROM depreciation_entries WHERE json_extract(data, '$.period') = ?
+		 ORDER BY json_extract(data, '$.asset_code')`, period)
+	if err != nil {
+		return nil, fmt.Errorf("depreciation: list by period: %w", err)
+	}
+	defer rows.Close()
+	return scanDepreciationEntries(rows)
+}
+
+func (r *sqliteDepreciationRepo) FindByAssetAndPeriod(ctx context.Context, assetID, period string) (*fixedasset.DepreciationEntry, error) {
+	var data string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT data FROM depreciation_entries
+		 WHERE json_extract(data, '$.asset_id') = ?
+		   AND json_extract(data, '$.period') = ?`, assetID, period).Scan(&data)
+	if err == sql.ErrNoRows {
+		return nil, fixedasset.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("depreciation: find by asset and period: %w", err)
+	}
+	var e fixedasset.DepreciationEntry
+	if err := json.Unmarshal([]byte(data), &e); err != nil {
+		return nil, fmt.Errorf("depreciation: decode: %w", err)
+	}
+	return &e, nil
+}
+
+func (r *sqliteDepreciationRepo) IsPeriodPosted(ctx context.Context, period string) (bool, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM depreciation_entries
+		 WHERE json_extract(data, '$.period') = ?
+		   AND json_extract(data, '$.status') = 'posted'`, period).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("depreciation: check period posted: %w", err)
+	}
+	return count > 0, nil
+}
+
+func scanDepreciationEntries(rows *sql.Rows) ([]*fixedasset.DepreciationEntry, error) {
+	var out []*fixedasset.DepreciationEntry
+	for rows.Next() {
+		var data string
+		if err := rows.Scan(&data); err != nil {
+			return nil, err
+		}
+		var e fixedasset.DepreciationEntry
+		if err := json.Unmarshal([]byte(data), &e); err != nil {
+			return nil, err
+		}
+		out = append(out, &e)
+	}
+	return out, rows.Err()
+}

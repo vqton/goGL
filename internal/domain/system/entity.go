@@ -1,20 +1,25 @@
 package system
 
-import (
-	"context"
+import "context"
 
-	"goGL/internal/domain/core"
-)
-
-type Tenant struct {
-	ID     string      `json:"id" bson:"_id"`
-	Code   string      `json:"code" bson:"code"`
-	Name   string      `json:"name" bson:"name"`
-	Status core.Status `json:"status" bson:"status"`
+// Info is the runtime health/identity snapshot served by GET /system/info.
+type Info struct {
+	Version       string `json:"version"`
+	Commit        string `json:"commit"`
+	GoVersion     string `json:"go_version"`
+	StartedAt     string `json:"started_at"`
+	UptimeSeconds int64  `json:"uptime_seconds"`
+	DBOK          bool   `json:"db_ok"`
+	SessionCount  int    `json:"session_count"`
+	LastBackupAt  string `json:"last_backup_at"`
 }
 
-type Repository interface {
-	Create(ctx context.Context, t *Tenant) error
-	FindByID(ctx context.Context, id string) (*Tenant, error)
-	Update(ctx context.Context, t *Tenant) error
+// SessionCounter counts active sessions (for system/info).
+type SessionCounter interface {
+	CountActive(ctx context.Context) (int, error)
+}
+
+// LastBackupProvider returns the timestamp of the newest backup artifact.
+type LastBackupProvider interface {
+	LastBackupAt(ctx context.Context) (string, error)
 }

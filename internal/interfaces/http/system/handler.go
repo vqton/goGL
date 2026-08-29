@@ -5,29 +5,27 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"goGL/internal/application/system"
+	appsystem "goGL/internal/application/system"
 )
 
 type Handler struct {
-	svc system.Service
+	svc appsystem.Service
 }
 
-func NewHandler(svc system.Service) *Handler {
+func NewHandler(svc appsystem.Service) *Handler {
 	return &Handler{svc: svc}
 }
 
 func (h *Handler) Register(r *gin.RouterGroup) {
 	g := r.Group("/system")
-	g.POST("/tenants", h.createTenant)
-	g.GET("/tenants/:id", h.getTenant)
+	g.GET("/info", h.info)
 }
 
-func (h *Handler) createTenant(c *gin.Context) {
-	// TODO: implement
-	c.Status(http.StatusNotImplemented)
-}
-
-func (h *Handler) getTenant(c *gin.Context) {
-	// TODO: implement
-	c.Status(http.StatusNotImplemented)
+func (h *Handler) info(c *gin.Context) {
+	info, err := h.svc.GetInfo(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "SYSTEM_ERROR", "message": err.Error()}})
+		return
+	}
+	c.JSON(http.StatusOK, info)
 }

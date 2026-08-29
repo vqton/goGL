@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 
 	"goGL/internal/domain/audit"
 )
@@ -30,6 +31,9 @@ func (r *sqliteRepository) FindByID(ctx context.Context, id string) (*audit.Audi
 	var data string
 	err := r.db.QueryRowContext(ctx,
 		`SELECT data FROM audit_logs WHERE id = ?`, id).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, audit.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

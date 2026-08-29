@@ -46,6 +46,11 @@ type Service interface {
 	References(ctx context.Context, kind masterdata.Kind, code string) (int64, error)
 	SetReferenceCount(ctx context.Context, kind masterdata.Kind, code string, n int64) error
 	PermissionNames() []string
+
+	// Department budget operations
+	SetBudget(ctx context.Context, departmentCode string, fiscalYear int, amount int64, notes, actor string) (*masterdata.BudgetRecord, error)
+	GetBudget(ctx context.Context, departmentCode string, fiscalYear int) (*masterdata.BudgetRecord, error)
+	ListBudgets(ctx context.Context, fiscalYear int) ([]*masterdata.BudgetRecord, error)
 }
 
 type service struct {
@@ -206,9 +211,13 @@ func (s *service) validate(ctx context.Context, rec *masterdata.Record) error {
 				MessageVn: "Loại hàng hóa không hợp lệ (21/31/41/51/61)",
 				MessageEn: "invalid item_type"}
 		}
+
+	case masterdata.KindDepartment:
+		return s.validateDepartment(rec)
 	}
 	return nil
 }
+
 
 func (s *service) checkCycle(ctx context.Context, kind masterdata.Kind, code, group string, depth int) error {
 	if depth > 32 {
@@ -1196,4 +1205,50 @@ func init() {
 		}
 	}
 	accountChildren = children
+}
+
+// ---------------------------------------------------------------------------
+// Department Budget Operations (BR-D008)
+// ---------------------------------------------------------------------------
+
+// SetBudget creates or updates a budget record for a department in a fiscal year.
+// BR-D008: Budget must be non-negative.
+func (s *service) SetBudget(ctx context.Context, departmentCode string, fiscalYear int, amount int64, notes, actor string) (*masterdata.BudgetRecord, error) {
+	// BR-D008: Budget must be non-negative
+	if amount < 0 {
+		return nil, &masterdata.ValidationError{
+			Kind: masterdata.KindDepartment, Code: departmentCode,
+			MessageVn: "Ngân sách không được âm",
+			MessageEn: "budget amount must be non-negative",
+		}
+	}
+
+	// Verify department exists
+	_, err := s.repo.GetByCode(ctx, masterdata.KindDepartment, departmentCode)
+	if err != nil {
+		return nil, err
+	}
+
+	budget := &masterdata.BudgetRecord{
+		DepartmentCode: departmentCode,
+		FiscalYear:     fiscalYear,
+		Amount:         amount,
+		Notes:          notes,
+	}
+
+	if err := s.repo.UpsertBudget(ctx, budget); err != nil {
+		return nil, err
+	}
+
+	return budget, nil
+}
+
+// GetBudget retrieves a budget record for a department in a fiscal year.
+func (s *service) GetBudget(ctx context.Context, departmentCode string, fiscalYear int) (*masterdata.BudgetRecord, error) {
+	return s.repo.GetBudget(ctx, departmentCode, fiscalYear)
+}
+
+// ListBudgets returns all budget records for a fiscal year.
+func (s *service) ListBudgets(ctx context.Context, fiscalYear int) ([]*masterdata.BudgetRecord, error) {
+	return s.repo.ListBudgets(ctx, fiscalYear)
 }

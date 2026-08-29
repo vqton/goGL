@@ -61,8 +61,13 @@ func TestRepository_FindByID_Missing(t *testing.T) {
 	d := openTestDB(t)
 	repo := persaudit.NewSqliteRepository(d)
 
-	if _, err := repo.FindByID(context.Background(), "nope"); err != sql.ErrNoRows {
-		t.Fatalf("expected sql.ErrNoRows, got %v", err)
+	_, err := repo.FindByID(context.Background(), "nope")
+	if err == nil {
+		t.Fatal("expected error for missing audit log")
+	}
+	// The repository wraps sql.ErrNoRows into a domain error
+	if err == sql.ErrNoRows {
+		t.Fatal("expected domain error, got raw sql.ErrNoRows")
 	}
 }
 

@@ -32,6 +32,15 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g.POST("/:id/confirm-liquidation", h.ConfirmLiquidation)
 	g.POST("/:id/deactivate", h.Deactivate)
 	g.POST("/:id/reactivate", h.Reactivate)
+
+	// Depreciation endpoints
+	g.POST("/depreciation/calculate", h.RunMonthlyDepreciation)
+	g.GET("/depreciation/period/:period", h.GetDepreciationByPeriod)
+	g.GET("/:id/depreciation-schedule", h.GetDepreciationSchedule)
+
+	// Approval workflow endpoints
+	g.POST("/:id/approve-liquidation", h.ApproveLiquidation)
+	g.POST("/:id/reject-liquidation", h.RejectLiquidation)
 }
 
 func (h *Handler) Create(c *gin.Context) {
@@ -159,6 +168,90 @@ func (h *Handler) Reactivate(c *gin.Context) {
 	c.JSON(http.StatusOK, a)
 }
 
+func (h *Handler) RunMonthlyDepreciation(c *gin.Context) {
+	var req struct {
+		Period string `json:"period" binding:"required"`
+		Actor  string `json:"actor" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	entries, err := h.svc.RunMonthlyDepreciation(c.Request.Context(), req.Period, req.Actor)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"period":   req.Period,
+		"count":    len(entries),
+		"entries":  entries,
+	})
+}
+
+func (h *Handler) GetDepreciationByPeriod(c *gin.Context) {
+	period := c.Param("period")
+	entries, err := h.svc.GetDepreciationByPeriod(c.Request.Context(), period)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"period":  period,
+		"count":   len(entries),
+		"entries": entries,
+	})
+}
+
+func (h *Handler) GetDepreciationSchedule(c *gin.Context) {
+	id := c.Param("id")
+	entries, err := h.svc.GetDepreciationSchedule(c.Request.Context(), id)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"asset_id": id,
+		"count":    len(entries),
+		"entries":  entries,
+	})
+}
+
+func (h *Handler) ApproveLiquidation(c *gin.Context) {
+	id := c.Param("id")
+	var req struct {
+		Actor string `json:"actor" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	a, err := h.svc.ApproveLiquidation(c.Request.Context(), id, req.Actor)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, a)
+}
+
+func (h *Handler) RejectLiquidation(c *gin.Context) {
+	id := c.Param("id")
+	var req struct {
+		Actor  string `json:"actor" binding:"required"`
+		Reason string `json:"reason" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	a, err := h.svc.RejectLiquidation(c.Request.Context(), id, req.Actor, req.Reason)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, a)
+}
+
 func (h *Handler) handleError(c *gin.Context, err error) {
 	var ve *core.ValidationError
 	if errors.As(err, &ve) {
@@ -172,6 +265,8 @@ func (h *Handler) handleError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, dom.ErrLiquidationPending):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, dom.ErrInvalid):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}

@@ -1,9 +1,8 @@
 # AGENTS.md
 
 Go ERP/general-ledger app (`module goGL`, Go 1.26.4): Gin HTTP API backed by SQLite.
-This is a **scaffolded skeleton** — 24 feature modules × 4 layers exist, but almost
-every method is a `TODO` stub. Only the DB, migration, and config infrastructure is
-implemented. `go build ./...`, `go vet ./...`, `go test ./...` all pass (no tests).
+24 feature modules × 4 layers, wired manually in `cmd/server/main.go`.
+`go build ./...`, `go vet ./...`, `go test ./...` all pass.
 
 ## Layout & architecture
 
@@ -70,18 +69,19 @@ are Go `html/templates` in `web/templates/` (layout `base.html`, pages define
   `config.Load("config.yaml")`. Creates `gogl.db` in CWD and listens on `:8080`.
 - `go mod tidy` after changing imports. Direct deps: casbin/casbin/v3, gin-gonic/gin,
   goccy/go-yaml, modernc.org/sqlite.
-- Tests live only in the authorization surface so far: the infrastructure package
-  (`internal/infrastructure/authorization/`) and the authz HTTP handler
-  (`internal/interfaces/http/authz/`). Run them with
-  `go test ./internal/infrastructure/authorization/... ./internal/interfaces/http/authz/...`.
+- Tests exist across many packages (59 test files, 33 passing packages). Run all with
+  `go test ./...` or target a single package, e.g.
+  `go test ./internal/application/cash/...`.
 - CSS (needs Node, first run `npm install`): `npm run build:css` compiles Tailwind
   once; `npm run watch:css` rebuilds on change. After adding Tailwind classes to a
   template, rebuild or the generated `app.css` goes stale.
+- E2E tests use Playwright (`npm run test:e2e`). The `playwright.config.ts` starts
+  the server via `go run ./cmd/server` on `:8080` automatically.
 
 ## Git
 
-- Repo initialized on `master`, **zero commits**, everything untracked. `.gitignore`
-  covers `node_modules/`, generated `web/static/css/app.css`, and runtime `gogl.db`.
+- Branch: `main`. `.gitignore` covers `node_modules/`, generated `web/static/css/app.css`,
+  and runtime `gogl.db`.
 - A custom `.git/hooks/pre-commit` (gofmt + `go vet` + `go test` on staged Go files)
   exists only in this checkout — it isn't tracked, so fresh clones won't have it.
 

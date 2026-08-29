@@ -28,6 +28,16 @@ const (
 	StatePendingLiquidation AssetState = "pending_liquidation"
 )
 
+// ApprovalStatus tracks the approval workflow for liquidation requests.
+type ApprovalStatus string
+
+const (
+	ApprovalNone         ApprovalStatus = ""
+	ApprovalPending      ApprovalStatus = "pending"
+	ApprovalApproved     ApprovalStatus = "approved"
+	ApprovalRejected     ApprovalStatus = "rejected"
+)
+
 // DepreciationMethod - only 3 methods per Circular 45/2013/TT-BTC.
 type DepreciationMethod string
 
@@ -91,6 +101,12 @@ type FixedAsset struct {
 
 	// State
 	State AssetState `json:"state"`
+
+	// Liquidation approval workflow
+	ApprovalStatus ApprovalStatus `json:"approval_status,omitempty"`
+	ApprovedBy     string         `json:"approved_by,omitempty"`
+	ApprovedAt     string         `json:"approved_at,omitempty"`
+	RejectReason   string         `json:"reject_reason,omitempty"`
 
 	// Audit
 	CreatedBy string `json:"created_by,omitempty"`
@@ -215,4 +231,52 @@ type Repository interface {
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, assetType AssetType, state AssetState, limit, offset int) ([]*FixedAsset, error)
 	NextCode(ctx context.Context) (int64, error)
+}
+
+// DepreciationEntry represents one monthly depreciation record for an asset.
+// Entries are created in DRAFT state, then posted to the general ledger.
+type DepreciationEntry struct {
+	ID                 string             `json:"id"`
+	AssetID            string             `json:"asset_id"`
+	AssetCode          string             `json:"asset_code"`
+	AssetName          string             `json:"asset_name"`
+	Period             string             `json:"period"` // YYYY-MM
+	DepreciationMethod DepreciationMethod `json:"depreciation_method"`
+	Amount             int64              `json:"amount"`
+	AccumulatedDepr    int64              `json:"accumulated_depr"`
+	BookValue          int64              `json:"book_value"`
+	AccountDebit       string             `json:"account_debit"`  // 623/627/641/642
+	AccountCredit      string             `json:"account_credit"` // 2141
+	Status             DepreciationStatus `json:"status"`
+	PostedAt           string             `json:"posted_at,omitempty"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedAt          string             `json:"created_at"`
+}
+
+// DepreciationStatus tracks the lifecycle of a depreciation entry.
+type DepreciationStatus string
+
+const (
+	DepreciationDraft  DepreciationStatus = "draft"
+	DepreciationPosted DepreciationStatus = "posted"
+)
+
+func (s DepreciationStatus) IsValid() bool {
+	switch s {
+	case DepreciationDraft, DepreciationPosted:
+		return true
+	default:
+		return false
+	}
+}
+
+// DepreciationEntryRepository defines persistence for depreciation entries.
+type DepreciationEntryRepository interface {
+	Create(ctx context.Context, e *DepreciationEntry) error
+	FindByID(ctx context.Context, id string) (*DepreciationEntry, error)
+	Update(ctx context.Context, e *DepreciationEntry) error
+	ListByAsset(ctx context.Context, assetID string) ([]*DepreciationEntry, error)
+	ListByPeriod(ctx context.Context, period string) ([]*DepreciationEntry, error)
+	FindByAssetAndPeriod(ctx context.Context, assetID, period string) (*DepreciationEntry, error)
+	IsPeriodPosted(ctx context.Context, period string) (bool, error)
 }

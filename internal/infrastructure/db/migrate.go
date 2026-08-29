@@ -60,6 +60,7 @@ var tables = []string{
 	"bank_transactions",
 	"bank_sequences",
 	"tools_cards",
+	"tools_transactions",
 	"tools_sequences",
 	"contracts",
 	"contract_sequences",

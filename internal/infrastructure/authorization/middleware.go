@@ -1,6 +1,7 @@
 package authorization
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/casbin/casbin/v3"
@@ -13,7 +14,6 @@ import (
 const AnonymousSubject = "anonymous"
 
 // PrincipalResolver resolves the current subject (user id) for a request.
-// Swap in a session/cookie/token resolver when authentication lands.
 type PrincipalResolver func(*gin.Context) string
 
 // HeaderPrincipalResolver reads the subject from the named request header.
@@ -26,6 +26,36 @@ func HeaderPrincipalResolver(header string) PrincipalResolver {
 			return sub
 		}
 		return AnonymousSubject
+	}
+}
+
+// SessionValidator resolves a session token to a subject username. Satisfied
+// by the auth application service through a small adapter (auth.Validate
+// returns the full user).
+type SessionValidator interface {
+	Validate(ctx context.Context, token string) (string, error)
+}
+
+// SessionValidatorFunc adapts a function to SessionValidator.
+type SessionValidatorFunc func(ctx context.Context, token string) (string, error)
+
+func (f SessionValidatorFunc) Validate(ctx context.Context, token string) (string, error) {
+	return f(ctx, token)
+}
+
+// SessionPrincipalResolver resolves the subject from the session cookie.
+// Anonymous requests (missing/invalid cookie) fail closed to AnonymousSubject.
+func SessionPrincipalResolver(cookieName string, validate SessionValidator) PrincipalResolver {
+	return func(c *gin.Context) string {
+		token, err := c.Cookie(cookieName)
+		if err != nil || token == "" {
+			return AnonymousSubject
+		}
+		sub, err := validate.Validate(c.Request.Context(), token)
+		if err != nil || sub == "" {
+			return AnonymousSubject
+		}
+		return sub
 	}
 }
 

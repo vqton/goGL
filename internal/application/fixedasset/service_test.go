@@ -296,3 +296,316 @@ func TestService_Reactivate_Success(t *testing.T) {
 		t.Errorf("state = %q, want active", got.State)
 	}
 }
+
+// --- Depreciation entry stub ---
+
+type stubDeprRepo struct {
+	entries map[string]*fixedasset.DepreciationEntry
+	posted  map[string]bool
+}
+
+func newStubDeprRepo() *stubDeprRepo {
+	return &stubDeprRepo{
+		entries: make(map[string]*fixedasset.DepreciationEntry),
+		posted:  make(map[string]bool),
+	}
+}
+
+func (r *stubDeprRepo) Create(_ context.Context, e *fixedasset.DepreciationEntry) error {
+	cp := *e
+	r.entries[e.ID] = &cp
+	return nil
+}
+
+func (r *stubDeprRepo) FindByID(_ context.Context, id string) (*fixedasset.DepreciationEntry, error) {
+	e, ok := r.entries[id]
+	if !ok {
+		return nil, fixedasset.ErrNotFound
+	}
+	cp := *e
+	return &cp, nil
+}
+
+func (r *stubDeprRepo) Update(_ context.Context, e *fixedasset.DepreciationEntry) error {
+	r.entries[e.ID] = e
+	return nil
+}
+
+func (r *stubDeprRepo) ListByAsset(_ context.Context, assetID string) ([]*fixedasset.DepreciationEntry, error) {
+	var out []*fixedasset.DepreciationEntry
+	for _, e := range r.entries {
+		if e.AssetID == assetID {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+func (r *stubDeprRepo) ListByPeriod(_ context.Context, period string) ([]*fixedasset.DepreciationEntry, error) {
+	var out []*fixedasset.DepreciationEntry
+	for _, e := range r.entries {
+		if e.Period == period {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+func (r *stubDeprRepo) FindByAssetAndPeriod(_ context.Context, assetID, period string) (*fixedasset.DepreciationEntry, error) {
+	for _, e := range r.entries {
+		if e.AssetID == assetID && e.Period == period {
+			cp := *e
+			return &cp, nil
+		}
+	}
+	return nil, fixedasset.ErrNotFound
+}
+
+func (r *stubDeprRepo) IsPeriodPosted(_ context.Context, period string) (bool, error) {
+	return r.posted[period], nil
+}
+
+// --- Depreciation service tests ---
+
+func TestService_RunMonthlyDepreciation_Success(t *testing.T) {
+	repo := newStubRepo()
+	deprRepo := newStubDeprRepo()
+	svc := NewServiceWithDepreciation(repo, deprRepo)
+
+	a := testAsset()
+	repo.Create(context.Background(), a)
+
+	entries, err := svc.RunMonthlyDepreciation(context.Background(), "2026-08", "admin")
+	if err != nil {
+		t.Fatalf("RunMonthlyDepreciation: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	e := entries[0]
+	if e.AssetID != "asset-1" {
+		t.Errorf("AssetID = %q, want asset-1", e.AssetID)
+	}
+	if e.Period != "2026-08" {
+		t.Errorf("Period = %q, want 2026-08", e.Period)
+	}
+	if e.Amount != 375000 { // (50M - 5M) / 120 = 375000
+		t.Errorf("Amount = %d, want 375000", e.Amount)
+	}
+	if e.AccountDebit != "627" {
+		t.Errorf("AccountDebit = %q, want 627", e.AccountDebit)
+	}
+	if e.AccountCredit != "2141" {
+		t.Errorf("AccountCredit = %q, want 2141", e.AccountCredit)
+	}
+	if e.Status != fixedasset.DepreciationDraft {
+		t.Errorf("Status = %q, want draft", e.Status)
+	}
+}
+
+func TestService_RunMonthlyDepreciation_AlreadyPosted(t *testing.T) {
+	repo := newStubRepo()
+	deprRepo := newStubDeprRepo()
+	svc := NewServiceWithDepreciation(repo, deprRepo)
+
+	a := testAsset()
+	repo.Create(context.Background(), a)
+	deprRepo.posted["2026-08"] = true
+
+	_, err := svc.RunMonthlyDepreciation(context.Background(), "2026-08", "admin")
+	if err != fixedasset.ErrConflict {
+		t.Errorf("expected ErrConflict, got %v", err)
+	}
+}
+
+func TestService_RunMonthlyDepreciation_NoDepreciationRepo(t *testing.T) {
+	repo := newStubRepo()
+	svc := NewService(repo) // no deprRepo
+
+	_, err := svc.RunMonthlyDepreciation(context.Background(), "2026-08", "admin")
+	if err != fixedasset.ErrInvalid {
+		t.Errorf("expected ErrInvalid, got %v", err)
+	}
+}
+
+func TestService_RunMonthlyDepreciation_SkipsFullyDepreciated(t *testing.T) {
+	repo := newStubRepo()
+	deprRepo := newStubDeprRepo()
+	svc := NewServiceWithDepreciation(repo, deprRepo)
+
+	a := testAsset()
+	a.AccumulatedDepr = 45_000_000 // already almost fully depreciated
+	repo.Create(context.Background(), a)
+
+	entries, err := svc.RunMonthlyDepreciation(context.Background(), "2026-08", "admin")
+	if err != nil {
+		t.Fatalf("RunMonthlyDepreciation: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries for fully depreciated asset, got %d", len(entries))
+	}
+}
+
+func TestService_GetDepreciationSchedule_Success(t *testing.T) {
+	repo := newStubRepo()
+	deprRepo := newStubDeprRepo()
+	svc := NewServiceWithDepreciation(repo, deprRepo)
+
+	a := testAsset()
+	repo.Create(context.Background(), a)
+	svc.RunMonthlyDepreciation(context.Background(), "2026-08", "admin")
+
+	schedule, err := svc.GetDepreciationSchedule(context.Background(), "asset-1")
+	if err != nil {
+		t.Fatalf("GetDepreciationSchedule: %v", err)
+	}
+	if len(schedule) != 1 {
+		t.Errorf("expected 1 entry, got %d", len(schedule))
+	}
+}
+
+func TestService_GetDepreciationByPeriod_Success(t *testing.T) {
+	repo := newStubRepo()
+	deprRepo := newStubDeprRepo()
+	svc := NewServiceWithDepreciation(repo, deprRepo)
+
+	a := testAsset()
+	repo.Create(context.Background(), a)
+	svc.RunMonthlyDepreciation(context.Background(), "2026-08", "admin")
+
+	entries, err := svc.GetDepreciationByPeriod(context.Background(), "2026-08")
+	if err != nil {
+		t.Fatalf("GetDepreciationByPeriod: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("expected 1 entry, got %d", len(entries))
+	}
+}
+
+func TestService_RunMonthlyDepreciation_MultipleAssets(t *testing.T) {
+	repo := newStubRepo()
+	deprRepo := newStubDeprRepo()
+	svc := NewServiceWithDepreciation(repo, deprRepo)
+
+	a1 := testAsset()
+	a1.ID = "asset-1"
+	repo.Create(context.Background(), a1)
+
+	a2 := testAsset()
+	a2.ID = "asset-2"
+	a2.OriginalCost = 100_000_000
+	a2.UsefulLifeMonths = 240
+	repo.Create(context.Background(), a2)
+
+	entries, err := svc.RunMonthlyDepreciation(context.Background(), "2026-08", "admin")
+	if err != nil {
+		t.Fatalf("RunMonthlyDepreciation: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+}
+
+// --- Approval workflow tests ---
+
+func TestService_Liquidate_SetsApprovalPending(t *testing.T) {
+	repo := newStubRepo()
+	svc := NewService(repo)
+	a := testAsset()
+	repo.Create(context.Background(), a)
+
+	got, err := svc.Liquidate(context.Background(), "asset-1")
+	if err != nil {
+		t.Fatalf("Liquidate: %v", err)
+	}
+	if got.ApprovalStatus != fixedasset.ApprovalPending {
+		t.Errorf("ApprovalStatus = %q, want pending", got.ApprovalStatus)
+	}
+}
+
+func TestService_ApproveLiquidation_Success(t *testing.T) {
+	repo := newStubRepo()
+	svc := NewService(repo)
+	a := testAsset()
+	a.State = fixedasset.StatePendingLiquidation
+	a.ApprovalStatus = fixedasset.ApprovalPending
+	repo.Create(context.Background(), a)
+
+	got, err := svc.ApproveLiquidation(context.Background(), "asset-1", "director")
+	if err != nil {
+		t.Fatalf("ApproveLiquidation: %v", err)
+	}
+	if got.ApprovalStatus != fixedasset.ApprovalApproved {
+		t.Errorf("ApprovalStatus = %q, want approved", got.ApprovalStatus)
+	}
+	if got.ApprovedBy != "director" {
+		t.Errorf("ApprovedBy = %q, want director", got.ApprovedBy)
+	}
+	if got.ApprovedAt == "" {
+		t.Error("ApprovedAt should be set")
+	}
+}
+
+func TestService_ApproveLiquidation_WrongState(t *testing.T) {
+	repo := newStubRepo()
+	svc := NewService(repo)
+	a := testAsset()
+	a.State = fixedasset.StateActive
+	repo.Create(context.Background(), a)
+
+	_, err := svc.ApproveLiquidation(context.Background(), "asset-1", "director")
+	if err != fixedasset.ErrConflict {
+		t.Errorf("expected ErrConflict, got %v", err)
+	}
+}
+
+func TestService_ApproveLiquidation_NotPending(t *testing.T) {
+	repo := newStubRepo()
+	svc := NewService(repo)
+	a := testAsset()
+	a.State = fixedasset.StatePendingLiquidation
+	a.ApprovalStatus = fixedasset.ApprovalNone // no approval request
+	repo.Create(context.Background(), a)
+
+	_, err := svc.ApproveLiquidation(context.Background(), "asset-1", "director")
+	if err != fixedasset.ErrConflict {
+		t.Errorf("expected ErrConflict, got %v", err)
+	}
+}
+
+func TestService_RejectLiquidation_Success(t *testing.T) {
+	repo := newStubRepo()
+	svc := NewService(repo)
+	a := testAsset()
+	a.State = fixedasset.StatePendingLiquidation
+	a.ApprovalStatus = fixedasset.ApprovalPending
+	repo.Create(context.Background(), a)
+
+	got, err := svc.RejectLiquidation(context.Background(), "asset-1", "director", "Asset still in use")
+	if err != nil {
+		t.Fatalf("RejectLiquidation: %v", err)
+	}
+	if got.ApprovalStatus != fixedasset.ApprovalRejected {
+		t.Errorf("ApprovalStatus = %q, want rejected", got.ApprovalStatus)
+	}
+	if got.RejectReason != "Asset still in use" {
+		t.Errorf("RejectReason = %q, want 'Asset still in use'", got.RejectReason)
+	}
+	if got.State != fixedasset.StateActive {
+		t.Errorf("State = %q, want active (reverted)", got.State)
+	}
+}
+
+func TestService_RejectLiquidation_WrongState(t *testing.T) {
+	repo := newStubRepo()
+	svc := NewService(repo)
+	a := testAsset()
+	a.State = fixedasset.StateActive
+	repo.Create(context.Background(), a)
+
+	_, err := svc.RejectLiquidation(context.Background(), "asset-1", "director", "reason")
+	if err != fixedasset.ErrConflict {
+		t.Errorf("expected ErrConflict, got %v", err)
+	}
+}

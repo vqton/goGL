@@ -200,6 +200,12 @@ type Repository interface {
 	NextCode(ctx context.Context, kind Kind) (int64, error)
 	GetRegime(ctx context.Context) (string, error)
 	SetRegime(ctx context.Context, regime, actor string) error
+
+	// BudgetRecord operations
+	UpsertBudget(ctx context.Context, b *BudgetRecord) error
+	GetBudget(ctx context.Context, departmentCode string, fiscalYear int) (*BudgetRecord, error)
+	ListBudgets(ctx context.Context, fiscalYear int) ([]*BudgetRecord, error)
+	DeleteBudget(ctx context.Context, id string) error
 }
 
 // Registry is the cross-module seam other features use to resolve a master
@@ -251,3 +257,78 @@ func ValidDate(v string) bool {
 }
 
 func (k Kind) String() string { return string(k) }
+
+// DepartmentType classifies departments for organizational structure (Circular 99/2025).
+type DepartmentType string
+
+const (
+	// DepartmentTypeExecutive represents executive management (Ban Giám đốc).
+	DepartmentTypeExecutive DepartmentType = "executive"
+	// DepartmentTypeOperational represents operational departments (Phòng vận hành).
+	DepartmentTypeOperational DepartmentType = "operational"
+	// DepartmentTypeSupport represents support departments (Phòng hỗ trợ).
+	DepartmentTypeSupport DepartmentType = "support"
+)
+
+// IsValid reports whether dt is a known department type.
+func (dt DepartmentType) IsValid() bool {
+	switch dt {
+	case DepartmentTypeExecutive, DepartmentTypeOperational, DepartmentTypeSupport:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the string representation of the department type.
+func (dt DepartmentType) String() string { return string(dt) }
+
+// DepartmentNode represents a department in the tree hierarchy.
+type DepartmentNode struct {
+	*Record
+	Children []*DepartmentNode
+}
+
+// String returns a string representation of the department node for debugging.
+func (n *DepartmentNode) String() string {
+	if n == nil {
+		return "<nil>"
+	}
+	return n.Code + " " + n.Name
+}
+
+// BudgetRecord holds budget data for a department per fiscal year.
+type BudgetRecord struct {
+	ID             string `json:"id"`
+	DepartmentCode string `json:"department_code"`
+	FiscalYear     int    `json:"fiscal_year"`
+	Amount         int64  `json:"amount"`
+	Notes          string `json:"notes,omitempty"`
+	CreatedBy      string `json:"created_by,omitempty"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedBy      string `json:"updated_by,omitempty"`
+	UpdatedAt      string `json:"updated_at"`
+}
+
+// BuildDepartmentTree constructs a tree structure from a flat list of departments.
+func BuildDepartmentTree(departments []*Record) []*DepartmentNode {
+	nodeMap := make(map[string]*DepartmentNode)
+	var roots []*DepartmentNode
+
+	// Create nodes
+	for _, dept := range departments {
+		nodeMap[dept.Code] = &DepartmentNode{Record: dept}
+	}
+
+	// Build tree
+	for _, dept := range departments {
+		node := nodeMap[dept.Code]
+		if dept.GroupCode == "" {
+			roots = append(roots, node)
+		} else if parent, ok := nodeMap[dept.GroupCode]; ok {
+			parent.Children = append(parent.Children, node)
+		}
+	}
+
+	return roots
+}
