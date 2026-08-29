@@ -137,7 +137,7 @@ func TestDepreciationEngine_CalculatePeriodDepreciation(t *testing.T) {
 		DepreciationMethod: fixedasset.MethodStraightLine,
 		UsefulLifeMonths:   120,
 	}
-	total, err := engine.CalculatePeriodDepreciation(a, 12)
+	total, updated, err := engine.CalculatePeriodDepreciation(a, 12)
 	if err != nil {
 		t.Fatalf("CalculatePeriodDepreciation: %v", err)
 	}
@@ -145,8 +145,30 @@ func TestDepreciationEngine_CalculatePeriodDepreciation(t *testing.T) {
 	if total != 10_800_000 {
 		t.Errorf("total = %d, want 10800000", total)
 	}
-	if a.AccumulatedDepr != 10_800_000 {
-		t.Errorf("accum = %d, want 10800000", a.AccumulatedDepr)
+	if updated.AccumulatedDepr != 10_800_000 {
+		t.Errorf("accum = %d, want 10800000", updated.AccumulatedDepr)
+	}
+	// Verify original asset is NOT mutated
+	if a.AccumulatedDepr != 0 {
+		t.Errorf("input mutated: accum = %d, want 0", a.AccumulatedDepr)
+	}
+}
+
+func TestDepreciationEngine_CalculatePeriodDepreciation_NoMutateInput(t *testing.T) {
+	engine := NewDepreciationEngine()
+	a := &fixedasset.FixedAsset{
+		OriginalCost:       120_000_000,
+		ResidualValue:      12_000_000,
+		DepreciationMethod: fixedasset.MethodStraightLine,
+		UsefulLifeMonths:   120,
+	}
+	originalAccum := a.AccumulatedDepr
+	_, _, err := engine.CalculatePeriodDepreciation(a, 6)
+	if err != nil {
+		t.Fatalf("CalculatePeriodDepreciation: %v", err)
+	}
+	if a.AccumulatedDepr != originalAccum {
+		t.Errorf("input mutated: accum = %d, want %d", a.AccumulatedDepr, originalAccum)
 	}
 }
 

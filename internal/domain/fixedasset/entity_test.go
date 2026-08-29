@@ -184,6 +184,48 @@ func TestValidateAsset_MissingInServiceDate(t *testing.T) {
 	}
 }
 
+func TestValidateAsset_InvalidPurchaseDateFormat(t *testing.T) {
+	a := &FixedAsset{
+		Name:               "Bad Date Format",
+		AssetType:          TypeMachinery,
+		OriginalCost:       50_000_000,
+		ResidualValue:      5_000_000,
+		DepreciationMethod: MethodStraightLine,
+		UsefulLifeMonths:   120,
+		PurchaseDate:       "01/01/2026", // Wrong format
+		InServiceDate:      "2026-01-15",
+	}
+	err := ValidateAsset(a)
+	if err == nil {
+		t.Error("expected error for invalid purchase date format")
+	}
+	var ve *core.ValidationError
+	if !errors.As(err, &ve) || ve.Field != "purchase_date" {
+		t.Errorf("expected ValidationError for purchase_date, got %v", err)
+	}
+}
+
+func TestValidateAsset_InvalidInServiceDateFormat(t *testing.T) {
+	a := &FixedAsset{
+		Name:               "Bad In-Service Date",
+		AssetType:          TypeMachinery,
+		OriginalCost:       50_000_000,
+		ResidualValue:      5_000_000,
+		DepreciationMethod: MethodStraightLine,
+		UsefulLifeMonths:   120,
+		PurchaseDate:       "2026-01-01",
+		InServiceDate:      "15-01-2026", // Wrong format
+	}
+	err := ValidateAsset(a)
+	if err == nil {
+		t.Error("expected error for invalid in-service date format")
+	}
+	var ve *core.ValidationError
+	if !errors.As(err, &ve) || ve.Field != "in_service_date" {
+		t.Errorf("expected ValidationError for in_service_date, got %v", err)
+	}
+}
+
 func TestAssetState_IsValid(t *testing.T) {
 	tests := []struct {
 		state AssetState

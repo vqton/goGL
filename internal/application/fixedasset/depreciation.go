@@ -30,7 +30,7 @@ func (e *DepreciationEngine) MonthlyDepreciation(a *fixedasset.FixedAsset) (int6
 	case fixedasset.MethodDeclining:
 		amount = e.decliningBalance(a.OriginalCost, a.AccumulatedDepr, a.UsefulLifeMonths)
 	case fixedasset.MethodUnitsOfOutput:
-		amount = e.unitsOfOutput(depreciableValue, a.UsefulLifeMonths)
+		amount = e.straightLine(depreciableValue, a.UsefulLifeMonths)
 	}
 
 	if amount > maxDepreciation {
@@ -60,25 +60,18 @@ func (e *DepreciationEngine) decliningBalance(originalCost, accumulatedDepr int6
 	return bookValue / int64(usefulLifeMonths)
 }
 
-// unitsOfOutput: (Cost - Residual) / Total Estimated Units * Units This Period
-// For monthly calculation, we use uniform distribution over useful life.
-func (e *DepreciationEngine) unitsOfOutput(depreciableValue int64, usefulLifeMonths int) int64 {
-	if usefulLifeMonths <= 0 {
-		return 0
-	}
-	return depreciableValue / int64(usefulLifeMonths)
-}
-
 // CalculatePeriodDepreciation calculates depreciation for a period (multiple months).
-func (e *DepreciationEngine) CalculatePeriodDepreciation(a *fixedasset.FixedAsset, months int) (int64, error) {
-	total := int64(0)
+// Returns total depreciation and a cloned asset with updated accumulated depreciation.
+// Does NOT mutate the input asset.
+func (e *DepreciationEngine) CalculatePeriodDepreciation(a *fixedasset.FixedAsset, months int) (total int64, updated *fixedasset.FixedAsset, err error) {
+	cp := a.Clone()
 	for i := 0; i < months; i++ {
-		monthly, err := e.MonthlyDepreciation(a)
+		monthly, err := e.MonthlyDepreciation(cp)
 		if err != nil {
-			return total, err
+			return total, cp, err
 		}
 		total += monthly
-		a.AccumulatedDepr += monthly
+		cp.AccumulatedDepr += monthly
 	}
-	return total, nil
+	return total, cp, nil
 }

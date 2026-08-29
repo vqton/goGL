@@ -61,7 +61,7 @@ type FixedAsset struct {
 	Category    string    `json:"category,omitempty"` // Sub-category within type
 	Description string    `json:"description,omitempty"`
 
-	// Financial (VND cents)
+	// Financial (VND)
 	OriginalCost    int64 `json:"original_cost"`
 	ResidualValue   int64 `json:"residual_value"`
 	AccumulatedDepr int64 `json:"accumulated_depr"`
@@ -69,7 +69,6 @@ type FixedAsset struct {
 	// Depreciation settings
 	DepreciationMethod DepreciationMethod `json:"depreciation_method"`
 	UsefulLifeMonths   int                `json:"useful_life_months"`
-	DepreciationRate   int64              `json:"depreciation_rate"` // Basis points (100 = 1%)
 
 	// Dates
 	PurchaseDate   string `json:"purchase_date"`
@@ -141,8 +140,14 @@ func ValidateAsset(a *FixedAsset) error {
 	if a.PurchaseDate == "" {
 		return &core.ValidationError{Field: "purchase_date", Message: "purchase date is required"}
 	}
+	if _, err := time.Parse("2006-01-02", a.PurchaseDate); err != nil {
+		return &core.ValidationError{Field: "purchase_date", Message: "purchase date must be YYYY-MM-DD"}
+	}
 	if a.InServiceDate == "" {
 		return &core.ValidationError{Field: "in_service_date", Message: "in-service date is required"}
+	}
+	if _, err := time.Parse("2006-01-02", a.InServiceDate); err != nil {
+		return &core.ValidationError{Field: "in_service_date", Message: "in-service date must be YYYY-MM-DD"}
 	}
 	if a.State == "" {
 		a.State = StateActive
@@ -208,6 +213,6 @@ type Repository interface {
 	FindByID(ctx context.Context, id string) (*FixedAsset, error)
 	Update(ctx context.Context, a *FixedAsset) error
 	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, assetType AssetType, state AssetState) ([]*FixedAsset, error)
+	List(ctx context.Context, assetType AssetType, state AssetState, limit, offset int) ([]*FixedAsset, error)
 	NextCode(ctx context.Context) (int64, error)
 }

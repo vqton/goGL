@@ -79,7 +79,7 @@ func (r *sqliteRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *sqliteRepository) List(ctx context.Context, assetType fixedasset.AssetType, state fixedasset.AssetState) ([]*fixedasset.FixedAsset, error) {
+func (r *sqliteRepository) List(ctx context.Context, assetType fixedasset.AssetType, state fixedasset.AssetState, limit, offset int) ([]*fixedasset.FixedAsset, error) {
 	q := `SELECT data FROM fixed_assets WHERE 1=1`
 	var args []any
 	if assetType != "" {
@@ -91,6 +91,8 @@ func (r *sqliteRepository) List(ctx context.Context, assetType fixedasset.AssetT
 		args = append(args, state)
 	}
 	q += ` ORDER BY json_extract(data, '$.code')`
+	q += ` LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

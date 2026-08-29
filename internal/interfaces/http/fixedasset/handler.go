@@ -3,6 +3,7 @@ package fixedasset
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -83,7 +84,9 @@ func (h *Handler) Delete(c *gin.Context) {
 func (h *Handler) List(c *gin.Context) {
 	assetType := dom.AssetType(c.Query("asset_type"))
 	state := dom.AssetState(c.Query("state"))
-	list, err := h.svc.List(c.Request.Context(), assetType, state)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	list, err := h.svc.List(c.Request.Context(), assetType, state, limit, offset)
 	if err != nil {
 		h.handleError(c, err)
 		return
@@ -101,16 +104,8 @@ func (h *Handler) Transfer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	a, err := h.svc.GetByID(c.Request.Context(), id)
+	a, err := h.svc.Transfer(c.Request.Context(), id, req.Location, req.Department)
 	if err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := fixedasset.Transfer(a, req.Location, req.Department); err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := h.svc.Update(c.Request.Context(), a); err != nil {
 		h.handleError(c, err)
 		return
 	}
@@ -119,16 +114,8 @@ func (h *Handler) Transfer(c *gin.Context) {
 
 func (h *Handler) Liquidate(c *gin.Context) {
 	id := c.Param("id")
-	a, err := h.svc.GetByID(c.Request.Context(), id)
+	a, err := h.svc.Liquidate(c.Request.Context(), id)
 	if err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := fixedasset.Liquidate(a); err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := h.svc.Update(c.Request.Context(), a); err != nil {
 		h.handleError(c, err)
 		return
 	}
@@ -144,16 +131,8 @@ func (h *Handler) ConfirmLiquidation(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	a, err := h.svc.GetByID(c.Request.Context(), id)
+	a, err := h.svc.ConfirmLiquidation(c.Request.Context(), id, req.State)
 	if err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := fixedasset.ConfirmLiquidation(a, req.State); err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := h.svc.Update(c.Request.Context(), a); err != nil {
 		h.handleError(c, err)
 		return
 	}
@@ -162,16 +141,8 @@ func (h *Handler) ConfirmLiquidation(c *gin.Context) {
 
 func (h *Handler) Deactivate(c *gin.Context) {
 	id := c.Param("id")
-	a, err := h.svc.GetByID(c.Request.Context(), id)
+	a, err := h.svc.Deactivate(c.Request.Context(), id)
 	if err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := fixedasset.Deactivate(a); err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := h.svc.Update(c.Request.Context(), a); err != nil {
 		h.handleError(c, err)
 		return
 	}
@@ -180,16 +151,8 @@ func (h *Handler) Deactivate(c *gin.Context) {
 
 func (h *Handler) Reactivate(c *gin.Context) {
 	id := c.Param("id")
-	a, err := h.svc.GetByID(c.Request.Context(), id)
+	a, err := h.svc.Reactivate(c.Request.Context(), id)
 	if err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := fixedasset.Reactivate(a); err != nil {
-		h.handleError(c, err)
-		return
-	}
-	if err := h.svc.Update(c.Request.Context(), a); err != nil {
 		h.handleError(c, err)
 		return
 	}
