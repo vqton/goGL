@@ -67,6 +67,9 @@ var tables = []string{
 	"loans",
 	"fixedasset_sequences",
 	"depreciation_entries",
+	"sales_orders",
+	"sales_returns",
+	"sales_sequences",
 }
 
 // validTableName checks that a table name contains only letters, digits, and

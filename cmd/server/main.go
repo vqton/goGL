@@ -210,18 +210,18 @@ func main() {
 			MaxFailures:          5,
 			LockoutMinutes:       15,
 			MinPasswordLen:       8,
-			PasswordExpiryDays:   90,  // Circular 99/2025 compliance
-			PasswordHistoryCount: 5,   // Prevent password reuse
+			PasswordExpiryDays:   90, // Circular 99/2025 compliance
+			PasswordHistoryCount: 5,  // Prevent password reuse
 		},
 	)
 	httpauth.NewHandler(authSvc, "session", 24).Register(v1)
 
 	// System info service
 	httpsystem.NewHandler(system.NewService(
-		"dev",                    // version
-		"unknown",                // commit
-		"1.21",                   // goVersion
-		time.Now(),               // startedAt
+		"dev",      // version
+		"unknown",  // commit
+		"1.21",     // goVersion
+		time.Now(), // startedAt
 		perssystem.NewSqliteRepository(sqlDB),
 		sessionRepo,
 		&backupLastBackupProvider{repo: persbackup.NewSqliteRepository(sqlDB)},
