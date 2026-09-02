@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -937,5 +938,348 @@ func TestWriteDownNRV_NoWriteDownNeeded(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status: got %d, want %d; body: %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+}
+
+// --- Report handler tests ---
+
+func TestGetStockBalanceReport(t *testing.T) {
+	_, r := setupTestHandler(t)
+
+	// Create item and warehouse
+	itemBody := `{"name":"Report Item","unit":"kg","category":"raw_materials","gl_account_152":"1521"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/items", bytes.NewBufferString(itemBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var item domaininventory.Item
+	json.NewDecoder(w.Body).Decode(&item)
+
+	whBody := `{"name":"Report Warehouse","warehouse_type":"general"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/warehouses", bytes.NewBufferString(whBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	var wh domaininventory.Warehouse
+	json.NewDecoder(w2.Body).Decode(&wh)
+
+	// Create receipt movement
+	movBody := fmt.Sprintf(`{"movement_type":"receipt","item_code":"%s","warehouse_code":"%s","quantity":100,"unit_price":50000,"movement_date":"2026-09-01"}`, item.Code, wh.Code)
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements", bytes.NewBufferString(movBody))
+	req3.Header.Set("Content-Type", "application/json")
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, req3)
+	var mov domaininventory.StockMovement
+	json.NewDecoder(w3.Body).Decode(&mov)
+
+	// Confirm movement
+	req4 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements/"+mov.ID+"/confirm", nil)
+	w4 := httptest.NewRecorder()
+	r.ServeHTTP(w4, req4)
+
+	// Get stock balance report
+	req5 := httptest.NewRequest(http.MethodGet, "/api/v1/inventory/reports/balance", nil)
+	w5 := httptest.NewRecorder()
+	r.ServeHTTP(w5, req5)
+
+	if w5.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w5.Code, http.StatusOK, w5.Body.String())
+	}
+
+	var report []domaininventory.StockCard
+	if err := json.NewDecoder(w5.Body).Decode(&report); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(report) != 1 {
+		t.Fatalf("expected 1 stock card, got %d", len(report))
+	}
+	if int64(report[0].CurrentQty) != 100 {
+		t.Errorf("quantity: got %v, want 100", report[0].CurrentQty)
+	}
+}
+
+func TestGetStockMovementReport(t *testing.T) {
+	_, r := setupTestHandler(t)
+
+	// Create item and warehouse
+	itemBody := `{"name":"Movement Report Item","unit":"kg","category":"raw_materials","gl_account_152":"1521"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/items", bytes.NewBufferString(itemBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var item domaininventory.Item
+	json.NewDecoder(w.Body).Decode(&item)
+
+	whBody := `{"name":"Movement Report Warehouse","warehouse_type":"general"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/warehouses", bytes.NewBufferString(whBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	var wh domaininventory.Warehouse
+	json.NewDecoder(w2.Body).Decode(&wh)
+
+	// Create and confirm receipt movement
+	movBody := fmt.Sprintf(`{"movement_type":"receipt","item_code":"%s","warehouse_code":"%s","quantity":100,"unit_price":50000,"movement_date":"2026-09-01"}`, item.Code, wh.Code)
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements", bytes.NewBufferString(movBody))
+	req3.Header.Set("Content-Type", "application/json")
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, req3)
+	var mov domaininventory.StockMovement
+	json.NewDecoder(w3.Body).Decode(&mov)
+
+	req4 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements/"+mov.ID+"/confirm", nil)
+	w4 := httptest.NewRecorder()
+	r.ServeHTTP(w4, req4)
+
+	// Get stock movement report
+	req5 := httptest.NewRequest(http.MethodGet, "/api/v1/inventory/reports/movements", nil)
+	w5 := httptest.NewRecorder()
+	r.ServeHTTP(w5, req5)
+
+	if w5.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w5.Code, http.StatusOK, w5.Body.String())
+	}
+
+	var report []domaininventory.StockMovement
+	if err := json.NewDecoder(w5.Body).Decode(&report); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(report) != 1 {
+		t.Fatalf("expected 1 movement, got %d", len(report))
+	}
+}
+
+func TestGetStockValuationReport(t *testing.T) {
+	_, r := setupTestHandler(t)
+
+	// Create item and warehouse
+	itemBody := `{"name":"Valuation Report Item","unit":"kg","category":"raw_materials","gl_account_152":"1521"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/items", bytes.NewBufferString(itemBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var item domaininventory.Item
+	json.NewDecoder(w.Body).Decode(&item)
+
+	whBody := `{"name":"Valuation Report Warehouse","warehouse_type":"general"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/warehouses", bytes.NewBufferString(whBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	var wh domaininventory.Warehouse
+	json.NewDecoder(w2.Body).Decode(&wh)
+
+	// Create and confirm receipt movement
+	movBody := fmt.Sprintf(`{"movement_type":"receipt","item_code":"%s","warehouse_code":"%s","quantity":100,"unit_price":50000,"movement_date":"2026-09-01"}`, item.Code, wh.Code)
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements", bytes.NewBufferString(movBody))
+	req3.Header.Set("Content-Type", "application/json")
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, req3)
+	var mov domaininventory.StockMovement
+	json.NewDecoder(w3.Body).Decode(&mov)
+
+	req4 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements/"+mov.ID+"/confirm", nil)
+	w4 := httptest.NewRecorder()
+	r.ServeHTTP(w4, req4)
+
+	// Get stock valuation report
+	req5 := httptest.NewRequest(http.MethodGet, "/api/v1/inventory/reports/valuation", nil)
+	w5 := httptest.NewRecorder()
+	r.ServeHTTP(w5, req5)
+
+	if w5.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w5.Code, http.StatusOK, w5.Body.String())
+	}
+
+	var report []domaininventory.StockCard
+	if err := json.NewDecoder(w5.Body).Decode(&report); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(report) != 1 {
+		t.Fatalf("expected 1 stock card, got %d", len(report))
+	}
+	if report[0].CurrentValue != 5000000 {
+		t.Errorf("current value: got %d, want 5000000", report[0].CurrentValue)
+	}
+}
+
+func TestImportOpeningBalance(t *testing.T) {
+	_, r := setupTestHandler(t)
+
+	// Create item and warehouse
+	itemBody := `{"name":"Opening Balance Item","unit":"kg","category":"raw_materials","gl_account_152":"1521"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/items", bytes.NewBufferString(itemBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var item domaininventory.Item
+	json.NewDecoder(w.Body).Decode(&item)
+
+	whBody := `{"name":"Opening Balance Warehouse","warehouse_type":"general"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/warehouses", bytes.NewBufferString(whBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	var wh domaininventory.Warehouse
+	json.NewDecoder(w2.Body).Decode(&wh)
+
+	// Import opening balance
+	importBody := fmt.Sprintf(`{"item_code":"%s","warehouse_code":"%s","quantity":200,"unit_price":45000,"movement_date":"2026-01-01"}`, item.Code, wh.Code)
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/opening-balance", bytes.NewBufferString(importBody))
+	req3.Header.Set("Content-Type", "application/json")
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, req3)
+
+	if w3.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w3.Code, http.StatusOK, w3.Body.String())
+	}
+
+	// Verify stock card was created
+	req4 := httptest.NewRequest(http.MethodGet, "/api/v1/inventory/stock/"+item.Code+"/"+wh.Code, nil)
+	w4 := httptest.NewRecorder()
+	r.ServeHTTP(w4, req4)
+
+	if w4.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w4.Code, http.StatusOK, w4.Body.String())
+	}
+
+	var sc domaininventory.StockCard
+	json.NewDecoder(w4.Body).Decode(&sc)
+	if int64(sc.CurrentQty) != 200 {
+		t.Errorf("quantity: got %v, want 200", sc.CurrentQty)
+	}
+	if int64(sc.AverageCost) != 45000 {
+		t.Errorf("average cost: got %v, want 45000", sc.AverageCost)
+	}
+}
+
+func TestCreateReceiptMovement(t *testing.T) {
+	_, r := setupTestHandler(t)
+
+	// Create item and warehouse
+	itemBody := `{"name":"Receipt Movement Item","unit":"kg","category":"raw_materials","gl_account_152":"1521"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/items", bytes.NewBufferString(itemBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var item domaininventory.Item
+	json.NewDecoder(w.Body).Decode(&item)
+
+	whBody := `{"name":"Receipt Movement Warehouse","warehouse_type":"general"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/warehouses", bytes.NewBufferString(whBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	var wh domaininventory.Warehouse
+	json.NewDecoder(w2.Body).Decode(&wh)
+
+	// Create receipt movement via API (simulating purchase integration)
+	movBody := fmt.Sprintf(`{"movement_type":"receipt","item_code":"%s","warehouse_code":"%s","quantity":50,"unit_price":60000,"movement_date":"2026-09-01","ref_doc_type":"goods_receipt","ref_doc_id":"GR-001","ref_doc_no":"NK-00001"}`, item.Code, wh.Code)
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements", bytes.NewBufferString(movBody))
+	req3.Header.Set("Content-Type", "application/json")
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, req3)
+
+	if w3.Code != http.StatusCreated {
+		t.Fatalf("status: got %d, want %d; body: %s", w3.Code, http.StatusCreated, w3.Body.String())
+	}
+
+	var mov domaininventory.StockMovement
+	json.NewDecoder(w3.Body).Decode(&mov)
+
+	// Confirm movement
+	req4 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements/"+mov.ID+"/confirm", nil)
+	w4 := httptest.NewRecorder()
+	r.ServeHTTP(w4, req4)
+
+	if w4.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w4.Code, http.StatusOK, w4.Body.String())
+	}
+
+	// Verify stock card was created
+	req5 := httptest.NewRequest(http.MethodGet, "/api/v1/inventory/stock/"+item.Code+"/"+wh.Code, nil)
+	w5 := httptest.NewRecorder()
+	r.ServeHTTP(w5, req5)
+
+	if w5.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w5.Code, http.StatusOK, w5.Body.String())
+	}
+
+	var sc domaininventory.StockCard
+	json.NewDecoder(w5.Body).Decode(&sc)
+	if int64(sc.CurrentQty) != 50 {
+		t.Errorf("quantity: got %v, want 50", sc.CurrentQty)
+	}
+}
+
+func TestCreateDispatchMovement(t *testing.T) {
+	_, r := setupTestHandler(t)
+
+	// Create item and warehouse
+	itemBody := `{"name":"Dispatch Movement Item","unit":"kg","category":"raw_materials","gl_account_152":"1521"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/items", bytes.NewBufferString(itemBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var item domaininventory.Item
+	json.NewDecoder(w.Body).Decode(&item)
+
+	whBody := `{"name":"Dispatch Movement Warehouse","warehouse_type":"general"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/warehouses", bytes.NewBufferString(whBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	var wh domaininventory.Warehouse
+	json.NewDecoder(w2.Body).Decode(&wh)
+
+	// First create and confirm a receipt to have stock
+	receiptBody := fmt.Sprintf(`{"movement_type":"receipt","item_code":"%s","warehouse_code":"%s","quantity":100,"unit_price":50000,"movement_date":"2026-09-01"}`, item.Code, wh.Code)
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements", bytes.NewBufferString(receiptBody))
+	req3.Header.Set("Content-Type", "application/json")
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, req3)
+	var receiptMov domaininventory.StockMovement
+	json.NewDecoder(w3.Body).Decode(&receiptMov)
+
+	req4 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements/"+receiptMov.ID+"/confirm", nil)
+	w4 := httptest.NewRecorder()
+	r.ServeHTTP(w4, req4)
+
+	// Create dispatch movement via API (simulating sales integration)
+	dispatchBody := fmt.Sprintf(`{"movement_type":"dispatch","item_code":"%s","warehouse_code":"%s","quantity":30,"unit_price":70000,"movement_date":"2026-09-02","ref_doc_type":"sales_invoice","ref_doc_id":"SI-001","ref_doc_no":"PX-00001"}`, item.Code, wh.Code)
+	req5 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements", bytes.NewBufferString(dispatchBody))
+	req5.Header.Set("Content-Type", "application/json")
+	w5 := httptest.NewRecorder()
+	r.ServeHTTP(w5, req5)
+
+	if w5.Code != http.StatusCreated {
+		t.Fatalf("status: got %d, want %d; body: %s", w5.Code, http.StatusCreated, w5.Body.String())
+	}
+
+	var dispatchMov domaininventory.StockMovement
+	json.NewDecoder(w5.Body).Decode(&dispatchMov)
+
+	// Confirm dispatch movement
+	req6 := httptest.NewRequest(http.MethodPost, "/api/v1/inventory/movements/"+dispatchMov.ID+"/confirm", nil)
+	w6 := httptest.NewRecorder()
+	r.ServeHTTP(w6, req6)
+
+	if w6.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w6.Code, http.StatusOK, w6.Body.String())
+	}
+
+	// Verify stock card was updated
+	req7 := httptest.NewRequest(http.MethodGet, "/api/v1/inventory/stock/"+item.Code+"/"+wh.Code, nil)
+	w7 := httptest.NewRecorder()
+	r.ServeHTTP(w7, req7)
+
+	if w7.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body: %s", w7.Code, http.StatusOK, w7.Body.String())
+	}
+
+	var sc domaininventory.StockCard
+	json.NewDecoder(w7.Body).Decode(&sc)
+	if int64(sc.CurrentQty) != 70 {
+		t.Errorf("quantity: got %v, want 70", sc.CurrentQty)
 	}
 }

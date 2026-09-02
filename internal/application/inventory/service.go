@@ -52,6 +52,10 @@ type Service interface {
 	// NRV Write-Down operations
 	WriteDownNRV(ctx context.Context, itemCode, warehouseCode string, nrvUnitCost int64, movementDate, actor string) (*inventory.StockMovement, error)
 	ReverseWriteDown(ctx context.Context, itemCode, warehouseCode string, nrvUnitCost int64, movementDate, actor string) (*inventory.StockMovement, error)
+
+	// Integration operations
+	CreateReceiptMovement(ctx context.Context, itemCode, warehouseCode, refDocID, refDocNo, movementDate string, quantity float64, unitPrice int64, actor string) (*inventory.StockMovement, error)
+	CreateDispatchMovement(ctx context.Context, itemCode, warehouseCode, refDocID, refDocNo, movementDate string, quantity float64, unitPrice int64, actor string) (*inventory.StockMovement, error)
 }
 
 type service struct {
@@ -735,4 +739,58 @@ func movementCodePrefix(mt inventory.MovementType) string {
 	default:
 		return "MK"
 	}
+}
+
+// --- Integration operations ---
+
+func (s *service) CreateReceiptMovement(ctx context.Context, itemCode, warehouseCode, refDocID, refDocNo, movementDate string, quantity float64, unitPrice int64, actor string) (*inventory.StockMovement, error) {
+	mov := &inventory.StockMovement{
+		MovementType:  inventory.MovementReceipt,
+		MovementDate:  movementDate,
+		ItemCode:      itemCode,
+		WarehouseCode: warehouseCode,
+		Quantity:      quantity,
+		UnitPrice:     unitPrice,
+		TotalCost:     int64(quantity) * unitPrice,
+		RefDocType:    "goods_receipt",
+		RefDocID:      refDocID,
+		RefDocNo:      refDocNo,
+	}
+
+	mov2, err := s.CreateMovement(ctx, mov, actor)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := s.ConfirmMovement(ctx, mov2.ID, actor); err != nil {
+		return nil, err
+	}
+
+	return s.repo.FindMovementByID(ctx, mov2.ID)
+}
+
+func (s *service) CreateDispatchMovement(ctx context.Context, itemCode, warehouseCode, refDocID, refDocNo, movementDate string, quantity float64, unitPrice int64, actor string) (*inventory.StockMovement, error) {
+	mov := &inventory.StockMovement{
+		MovementType:  inventory.MovementDispatch,
+		MovementDate:  movementDate,
+		ItemCode:      itemCode,
+		WarehouseCode: warehouseCode,
+		Quantity:      quantity,
+		UnitPrice:     unitPrice,
+		TotalCost:     int64(quantity) * unitPrice,
+		RefDocType:    "sales_invoice",
+		RefDocID:      refDocID,
+		RefDocNo:      refDocNo,
+	}
+
+	mov2, err := s.CreateMovement(ctx, mov, actor)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := s.ConfirmMovement(ctx, mov2.ID, actor); err != nil {
+		return nil, err
+	}
+
+	return s.repo.FindMovementByID(ctx, mov2.ID)
 }

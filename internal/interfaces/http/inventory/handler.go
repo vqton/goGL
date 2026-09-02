@@ -64,6 +64,14 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	// NRV Write-Down endpoints
 	g.POST("/writedown", h.writeDownNRV)
 	g.POST("/writedown/reverse", h.reverseWriteDown)
+
+	// Opening Balance endpoint
+	g.POST("/opening-balance", h.importOpeningBalance)
+
+	// Report endpoints
+	g.GET("/reports/balance", h.getStockBalanceReport)
+	g.GET("/reports/movements", h.getStockMovementReport)
+	g.GET("/reports/valuation", h.getStockValuationReport)
 }
 
 func (h *Handler) actor(c *gin.Context) string {
@@ -452,4 +460,84 @@ func (h *Handler) reverseWriteDown(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, mov)
+}
+
+// --- Report handlers ---
+
+func (h *Handler) getStockBalanceReport(c *gin.Context) {
+	warehouseCode := c.Query("warehouse_code")
+	cards, _, err := h.svc.ListStockBalances(c.Request.Context(), warehouseCode, 1000, 0)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, cards)
+}
+
+func (h *Handler) getStockMovementReport(c *gin.Context) {
+	itemCode := c.Query("item_code")
+	warehouseCode := c.Query("warehouse_code")
+	movements, _, err := h.svc.ListMovements(c.Request.Context(), itemCode, warehouseCode, "", 1000, 0)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, movements)
+}
+
+func (h *Handler) getStockValuationReport(c *gin.Context) {
+	itemCode := c.Query("item_code")
+	warehouseCode := c.Query("warehouse_code")
+	cards, _, err := h.svc.ListStockBalances(c.Request.Context(), warehouseCode, 1000, 0)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	// Filter by itemCode if provided
+	var result []*domaininventory.StockCard
+	for _, card := range cards {
+		if itemCode == "" || card.ItemCode == itemCode {
+			result = append(result, card)
+		}
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// --- Opening Balance handler ---
+
+func (h *Handler) importOpeningBalance(c *gin.Context) {
+	var req struct {
+		ItemCode      string  `json:"item_code"`
+		WarehouseCode string  `json:"warehouse_code"`
+		Quantity      float64 `json:"quantity"`
+		UnitPrice     int64   `json:"unit_price"`
+		MovementDate  string  `json:"movement_date"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	mov := &domaininventory.StockMovement{
+		MovementType:  domaininventory.MovementOpeningBalance,
+		MovementDate:  req.MovementDate,
+		ItemCode:      req.ItemCode,
+		WarehouseCode: req.WarehouseCode,
+		Quantity:      req.Quantity,
+		UnitPrice:     req.UnitPrice,
+		TotalCost:     int64(req.Quantity) * req.UnitPrice,
+	}
+
+	mov2, err := h.svc.CreateMovement(c.Request.Context(), mov, h.actor(c))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	if _, err := h.svc.ConfirmMovement(c.Request.Context(), mov2.ID, h.actor(c)); err != nil {
+		respondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "opening balance imported"})
 }

@@ -107,7 +107,7 @@ are Go `html/templates` in `web/templates/` (layout `base.html`, pages define
 ## Module Status
 
 Fully implemented modules (with tests):
-- **inventory** — 103 tests: Item/Warehouse CRUD, StockCard, StockMovement (FIFO/Weighted Average), StockTransfer, StockAdjustment, PhysicalCount, NRV Write-Down/Reversal
+- **inventory** — 109 tests: Item/Warehouse CRUD, StockCard, StockMovement (FIFO/Weighted Average), StockTransfer, StockAdjustment, PhysicalCount, NRV Write-Down/Reversal, Reports (Balance/Movement/Valuation), Opening Balance Import, Purchase/Sales Integration
 - **purchase** — 99 tests: Supplier, PurchaseOrder, GoodsReceipt, PurchaseInvoice, Payment
 - **sales** — 60 tests: SalesInvoice, SalesOrder, SalesReturn, Customer balance
 - **fixedasset** — Entity with depreciation, batch processor, approval workflow
@@ -126,6 +126,8 @@ API endpoints under `/api/v1/inventory/...`:
 - `POST /transfer`, `POST /adjust`
 - `POST /counts`, `GET /counts`, `GET/PUT /counts/:id`, `POST /counts/:id/complete`, `POST /counts/:id/reconcile`
 - `POST /writedown`, `POST /writedown/reverse`
+- `POST /opening-balance`
+- `GET /reports/balance`, `GET /reports/movements`, `GET /reports/valuation`
 
 Key patterns:
 - FIFO valuation uses `StockValuationLayer` entities (oldest-first consumption)
