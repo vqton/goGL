@@ -17,13 +17,13 @@ type Service interface {
 }
 
 type service struct {
-	version    string
-	commit     string
-	goVersion  string
-	startedAt  time.Time
-	health     HealthCheck
-	sessions   system.SessionCounter
-	backups    system.LastBackupProvider
+	version   string
+	commit    string
+	goVersion string
+	startedAt time.Time
+	health    HealthCheck
+	sessions  system.SessionCounter
+	backups   system.LastBackupProvider
 }
 
 func NewService(version, commit, goVersion string, startedAt time.Time, health HealthCheck, sessions system.SessionCounter, backups system.LastBackupProvider) Service {
@@ -40,10 +40,10 @@ func NewService(version, commit, goVersion string, startedAt time.Time, health H
 
 func (s *service) GetInfo(ctx context.Context) (*system.Info, error) {
 	info := &system.Info{
-		Version:   s.version,
-		Commit:    s.commit,
-		GoVersion: s.goVersion,
-		StartedAt: s.startedAt.UTC().Format(time.RFC3339),
+		Version:       s.version,
+		Commit:        s.commit,
+		GoVersion:     s.goVersion,
+		StartedAt:     s.startedAt.UTC().Format(time.RFC3339),
 		UptimeSeconds: int64(time.Since(s.startedAt).Seconds()),
 	}
 

@@ -17,41 +17,41 @@ var (
 type ContractType string
 
 const (
-	TypeService      ContractType = "service"
-	TypePurchase     ContractType = "purchase"
-	TypeSales        ContractType = "sales"
-	TypeEmployment   ContractType = "employment"
-	TypeLease        ContractType = "lease"
-	TypeLoan         ContractType = "loan"
-	TypeOther        ContractType = "other"
+	TypeService    ContractType = "service"
+	TypePurchase   ContractType = "purchase"
+	TypeSales      ContractType = "sales"
+	TypeEmployment ContractType = "employment"
+	TypeLease      ContractType = "lease"
+	TypeLoan       ContractType = "loan"
+	TypeOther      ContractType = "other"
 )
 
 type ContractState string
 
 const (
-	StateDraft     ContractState = "draft"
-	StateActive    ContractState = "active"
-	StateExpired   ContractState = "expired"
+	StateDraft      ContractState = "draft"
+	StateActive     ContractState = "active"
+	StateExpired    ContractState = "expired"
 	StateTerminated ContractState = "terminated"
 )
 
 type Contract struct {
-	ID          string         `json:"id"`
-	Code        string         `json:"code"`
-	Name        string         `json:"name"`
-	Type        ContractType   `json:"type"`
-	PartyName   string         `json:"party_name"`
-	PartyTaxID  string         `json:"party_tax_id,omitempty"`
-	Value       int64          `json:"value"`
-	Currency    string         `json:"currency"`
-	StartDate   string         `json:"start_date"`
-	EndDate     string         `json:"end_date"`
-	State       ContractState  `json:"state"`
-	Notes       string         `json:"notes,omitempty"`
-	CreatedBy   string         `json:"created_by,omitempty"`
-	CreatedAt   string         `json:"created_at"`
-	UpdatedBy   string         `json:"updated_by,omitempty"`
-	UpdatedAt   string         `json:"updated_at"`
+	ID         string        `json:"id"`
+	Code       string        `json:"code"`
+	Name       string        `json:"name"`
+	Type       ContractType  `json:"type"`
+	PartyName  string        `json:"party_name"`
+	PartyTaxID string        `json:"party_tax_id,omitempty"`
+	Value      int64         `json:"value"`
+	Currency   string        `json:"currency"`
+	StartDate  string        `json:"start_date"`
+	EndDate    string        `json:"end_date"`
+	State      ContractState `json:"state"`
+	Notes      string        `json:"notes,omitempty"`
+	CreatedBy  string        `json:"created_by,omitempty"`
+	CreatedAt  string        `json:"created_at"`
+	UpdatedBy  string        `json:"updated_by,omitempty"`
+	UpdatedAt  string        `json:"updated_at"`
 }
 
 func (c *Contract) Clone() *Contract {

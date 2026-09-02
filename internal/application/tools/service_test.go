@@ -12,12 +12,12 @@ func TestCreateCard_Success(t *testing.T) {
 	svc := NewService(repo)
 
 	input := &tools.ToolCard{
-		Name:          "Drill Machine",
-		Category:      "tools",
-		OriginalCost:  2500000, // 2.5M VND (< 30M threshold)
-		Quantity:      2,
-		Unit:          "pcs",
-		PurchaseDate:  "2026-08-29",
+		Name:         "Drill Machine",
+		Category:     "tools",
+		OriginalCost: 2500000, // 2.5M VND (< 30M threshold)
+		Quantity:     2,
+		Unit:         "pcs",
+		PurchaseDate: "2026-08-29",
 	}
 
 	result, err := svc.Create(context.Background(), input, "admin")

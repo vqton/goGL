@@ -4,6 +4,16 @@ Go ERP/general-ledger app (`module goGL`, Go 1.26.4): Gin HTTP API backed by SQL
 24 feature modules × 4 layers, wired manually in `cmd/server/main.go`.
 `go build ./...`, `go vet ./...`, `go test ./...` all pass.
 
+## Quick reference
+
+- **Run:** `go run ./cmd/server` — from repo root only, creates `gogl.db`, listens on `:8080`
+- **Test all:** `go test ./...` (42 passing packages)
+- **Test one package:** `go test ./internal/application/cash/...`
+- **Test one file:** `go test ./internal/application/cash -run TestCreateVoucher`
+- **Build CSS:** `npm install && npm run build:css` (Tailwind v4, needs Node)
+- **Watch CSS:** `npm run watch:css`
+- **E2E tests:** `npm run test:e2e` (Playwright, starts server automatically)
+
 ## Layout & architecture
 
 Each feature module (cash, ledger, invoice, payroll, …) spans four packages — one
@@ -52,6 +62,15 @@ are Go `html/templates` in `web/templates/` (layout `base.html`, pages define
 `web/css/input.css` (`@import "tailwindcss";`) to the generated
 `web/static/css/app.css` — gitignored, never edit by hand.
 
+## Testing patterns
+
+- Tests use **in-memory SQLite** databases (`file:<name>?mode=memory&cache=shared`)
+- Each test gets a fresh DB via `db.Migrate()` — no cleanup needed
+- Service tests create real DB + fake auditors/repos, no mocking framework
+- Domain tests are pure Go, no DB dependency
+- HTTP handler tests use `httptest.NewRecorder()` with real service + DB
+- Run a single test: `go test ./internal/application/cash -run TestCreateVoucher`
+
 ## Persistence
 
 - SQLite via `modernc.org/sqlite` (pure Go; driver name `"sqlite"`; plain `database/sql`).
@@ -69,7 +88,7 @@ are Go `html/templates` in `web/templates/` (layout `base.html`, pages define
   `config.Load("config.yaml")`. Creates `gogl.db` in CWD and listens on `:8080`.
 - `go mod tidy` after changing imports. Direct deps: casbin/casbin/v3, gin-gonic/gin,
   goccy/go-yaml, modernc.org/sqlite.
-- Tests exist across many packages (59 test files, 33 passing packages). Run all with
+- Tests exist across many packages (69 test files, 42 passing packages). Run all with
   `go test ./...` or target a single package, e.g.
   `go test ./internal/application/cash/...`.
 - CSS (needs Node, first run `npm install`): `npm run build:css` compiles Tailwind
@@ -85,6 +104,37 @@ are Go `html/templates` in `web/templates/` (layout `base.html`, pages define
 - A custom `.git/hooks/pre-commit` (gofmt + `go vet` + `go test` on staged Go files)
   exists only in this checkout — it isn't tracked, so fresh clones won't have it.
 
+## Module Status
+
+Fully implemented modules (with tests):
+- **inventory** — 103 tests: Item/Warehouse CRUD, StockCard, StockMovement (FIFO/Weighted Average), StockTransfer, StockAdjustment, PhysicalCount, NRV Write-Down/Reversal
+- **purchase** — 99 tests: Supplier, PurchaseOrder, GoodsReceipt, PurchaseInvoice, Payment
+- **sales** — 60 tests: SalesInvoice, SalesOrder, SalesReturn, Customer balance
+- **fixedasset** — Entity with depreciation, batch processor, approval workflow
+- **tools** — Entity with GL fields, ToolTransaction, 6 transaction types, atomic stock operations
+
+Stub modules (return `ErrNotImplemented`):
+- bank, budget, cash, contract, costing, invoice, ledger, masterdata, payroll, reporting, setup, tax
+
+## Inventory Module (Vietnamese Accounting Compliant)
+
+API endpoints under `/api/v1/inventory/...`:
+- `POST/GET /items`, `GET/PUT /items/:id`, `DELETE /items/:id`, `GET /items/code/:code`
+- `POST/GET /warehouses`, `GET/PUT /warehouses/:id`, `DELETE /warehouses/:id`, `GET /warehouses/code/:code`
+- `GET /stock`, `GET /stock/:itemCode/:warehouseCode`
+- `POST /movements`, `GET /movements`, `GET /movements/:id`, `POST /movements/:id/confirm`
+- `POST /transfer`, `POST /adjust`
+- `POST /counts`, `GET /counts`, `GET/PUT /counts/:id`, `POST /counts/:id/complete`, `POST /counts/:id/reconcile`
+- `POST /writedown`, `POST /writedown/reverse`
+
+Key patterns:
+- FIFO valuation uses `StockValuationLayer` entities (oldest-first consumption)
+- Weighted Average maintains running average on stock card
+- Physical Count auto-populates system qty from stock cards on complete
+- NRV Write-Down: Dr. 515xxx / Cr. 152xxx; Reversal: Dr. 152xxx / Cr. 515xxx
+- Movement code prefixes: PN (receipt), PX (dispatch), PCCD (transfer-in), PCCT (transfer-out), DK (adjustment)
+- All monetary values stored as `int64` (VND, no decimals)
+
 ## Skills
 
 The globally installed skills are routed by a 5W1H decision table at
@@ -92,3 +142,10 @@ The globally installed skills are routed by a 5W1H decision table at
 **When** column first (or `ask-matt`); skills load by name via the `skill` tool.
 
 CodeGraph index (`.codegraph/`) is available for code exploration.
+
+## Architecture diagram
+
+Interactive HTML diagram generated with Archify:
+- `docs/architecture.html` — self-contained, open in browser
+- `docs/architecture.json` — source IR (edit to update)
+- Regenerate: `node /root/.config/opencode/skills/archify/bin/archify.mjs deliver architecture docs/architecture.json docs/architecture.html --quality showcase --json`

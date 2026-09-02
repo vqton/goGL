@@ -42,10 +42,10 @@ func (h *Handler) actor(c *gin.Context) string {
 }
 
 type createUserRequest struct {
-	Username   string   `json:"username"`
-	FullName   string   `json:"full_name"`
-	Password   string   `json:"password"`
-	RoleCodes  []string `json:"role_codes"`
+	Username  string   `json:"username"`
+	FullName  string   `json:"full_name"`
+	Password  string   `json:"password"`
+	RoleCodes []string `json:"role_codes"`
 }
 
 func (h *Handler) createUser(c *gin.Context) {

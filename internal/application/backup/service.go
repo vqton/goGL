@@ -43,13 +43,13 @@ type Service interface {
 }
 
 type service struct {
-	db          *sql.DB
-	repo        backup.Repository
-	auditor     Auditor
-	targetDir   string
-	liveDBPath  string
-	maxBackups  int
-	now         func() time.Time
+	db         *sql.DB
+	repo       backup.Repository
+	auditor    Auditor
+	targetDir  string
+	liveDBPath string
+	maxBackups int
+	now        func() time.Time
 }
 
 func NewService(db *sql.DB, repo backup.Repository, auditor Auditor, targetDir, liveDBPath string, maxBackups int) Service {

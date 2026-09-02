@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "goGL — Go ERP / General Ledger",
+    "subtitle": "Gin HTTP API · SQLite · 4-layer architecture · 24 feature modules",
+    "output": "architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "request-flow", "label": "Request flow", "focus": ["browser", "gin", "authz", "handlers", "services", "sqlite"], "note": "HTTP request enters Gin, passes Casbin middleware, routes to handler, calls service, persists to SQLite." },
+      { "id": "module-layers", "label": "Module layers", "focus": ["handlers", "services", "domain", "sqlite"], "note": "Each feature module spans four packages: handler → service → domain → repository." },
+      { "id": "auth-path", "label": "Authorization", "focus": ["browser", "gin", "authz", "casbin"], "note": "Casbin RBAC enforcement with header-based principal resolution." }
+    ]
+  },
+  "components": [
+    { "id": "browser", "type": "external", "label": "Browser / Client", "sublabel": "Web UI · REST API", "pos": [40, 240], "size": [130, 60] },
+    { "id": "gin", "type": "backend", "label": "Gin Router", "sublabel": "HTTP :8080", "pos": [240, 240], "size": [130, 60] },
+    { "id": "authz", "type": "security", "label": "Casbin Middleware", "sublabel": "RBAC enforcement", "pos": [240, 100], "size": [150, 60], "tag": "role:admin · role:director" },
+    { "id": "casbin", "type": "database", "label": "Casbin Policies", "sublabel": "casbin_policies table", "pos": [450, 100], "size": [150, 60] },
+    { "id": "handlers", "type": "backend", "label": "HTTP Handlers", "sublabel": "24 modules · /api/v1/*", "pos": [450, 240], "size": [150, 60] },
+    { "id": "services", "type": "backend", "label": "Application Services", "sublabel": "Business logic", "pos": [660, 240], "size": [160, 60] },
+    { "id": "domain", "type": "backend", "label": "Domain Entities", "sublabel": "Entities · Repository interfaces", "pos": [660, 400], "size": [160, 60] },
+    { "id": "sqlite", "type": "database", "label": "SQLite", "sublabel": "modernc.org/sqlite · gogl.db", "pos": [880, 240], "size": [150, 60], "tag": "JSON-document rows" },
+    { "id": "web", "type": "frontend", "label": "Web UI", "sublabel": "Go templates · Tailwind v4", "pos": [40, 400], "size": [140, 60] },
+    { "id": "audit", "type": "backend", "label": "Audit Trail", "sublabel": "All mutations logged", "pos": [880, 400], "size": [140, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Go Process", "wraps": ["gin", "authz", "handlers", "services", "domain"] },
+    { "kind": "security-group", "label": "/api/v1 — Protected", "wraps": ["handlers"] }
+  ],
+  "connections": [
+    { "id": "browser-to-gin", "from": "browser", "to": "gin", "label": "HTTP :8080", "variant": "emphasis" },
+    { "id": "gin-to-authz", "from": "gin", "to": "authz", "label": "middleware", "variant": "security", "fromSide": "top", "toSide": "bottom" },
+    { "id": "authz-to-casbin", "from": "authz", "to": "casbin", "label": "enforce", "variant": "security", "fromSide": "right", "toSide": "left" },
+    { "id": "gin-to-handlers", "from": "gin", "to": "handlers", "label": "route" },
+    { "id": "handlers-to-services", "from": "handlers", "to": "services", "label": "call" },
+    { "id": "services-to-domain", "from": "services", "to": "domain", "label": "domain", "labelDy": -54 },
+    { "id": "services-to-sqlite", "from": "services", "to": "sqlite", "label": "SQL", "variant": "dashed", "fromSide": "right", "toSide": "left" },
+    { "id": "web-to-gin", "from": "web", "to": "gin", "label": "templates", "fromSide": "top", "toSide": "bottom", "variant": "dashed" },
+    { "id": "services-to-audit", "from": "services", "to": "audit", "label": "log", "variant": "dashed", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Interfaces Layer", "items": ["HTTP handlers register on /api/v1/<module>", "Web handlers for cash, ledger, setup", "Casbin authorization middleware"] },
+    { "dot": "emerald", "title": "Application Layer", "items": ["Service interface + NewService(repo)", "24 modules: inventory, purchase, sales, ledger, cash, …", "Cross-module seams for setup orchestrator"] },
+    { "dot": "violet", "title": "Domain Layer", "items": ["Entities + Repository interface", "Shared types: Money, Period, Status", "ErrNotImplemented for stubs"] },
+    { "dot": "rose", "title": "Infrastructure Layer", "items": ["SQLite via modernc.org/sqlite (pure Go)", "JSON-document rows: (id TEXT, data TEXT)", "Casbin RBAC with custom SQLite adapter"] }
+  ]
+}

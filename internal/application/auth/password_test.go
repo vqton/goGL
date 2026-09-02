@@ -12,10 +12,10 @@ import (
 
 // mockUserRepo implements user.Repository for testing.
 type mockUserRepo struct {
-	users    map[string]*user.User
-	byUser   map[string]*user.User
-	roles    map[string]*user.Role
-	history  []string // password hashes in order
+	users   map[string]*user.User
+	byUser  map[string]*user.User
+	roles   map[string]*user.Role
+	history []string // password hashes in order
 }
 
 func newMockUserRepo() *mockUserRepo {
@@ -195,12 +195,12 @@ func TestLogin_PasswordExpired_ForceChange(t *testing.T) {
 	_ = userRepo.Create(context.Background(), u)
 
 	svc := NewService(userRepo, sessionRepo, auditor, Policy{
-		CookieName:        "session",
-		MaxHours:          24,
-		IdleMinutes:       30,
-		MaxFailures:       5,
-		LockoutMinutes:    15,
-		MinPasswordLen:    8,
+		CookieName:         "session",
+		MaxHours:           24,
+		IdleMinutes:        30,
+		MaxFailures:        5,
+		LockoutMinutes:     15,
+		MinPasswordLen:     8,
 		PasswordExpiryDays: 90, // expires after 90 days
 	})
 
@@ -241,12 +241,12 @@ func TestLogin_PasswordNotExpired_NormalLogin(t *testing.T) {
 	_ = userRepo.Create(context.Background(), u)
 
 	svc := NewService(userRepo, sessionRepo, auditor, Policy{
-		CookieName:        "session",
-		MaxHours:          24,
-		IdleMinutes:       30,
-		MaxFailures:       5,
-		LockoutMinutes:    15,
-		MinPasswordLen:    8,
+		CookieName:         "session",
+		MaxHours:           24,
+		IdleMinutes:        30,
+		MaxFailures:        5,
+		LockoutMinutes:     15,
+		MinPasswordLen:     8,
 		PasswordExpiryDays: 90,
 	})
 
@@ -275,23 +275,23 @@ func TestChangePassword_StoresHistory(t *testing.T) {
 
 	hash, _ := user.HashPassword("oldPass123")
 	u := &user.User{
-		ID:                 "u_testuser",
-		Username:           "testuser",
-		FullName:           "Test User",
-		PasswordHash:       hash,
-		RoleCodes:          []string{"accountant"},
-		Status:             user.StatusActive,
+		ID:           "u_testuser",
+		Username:     "testuser",
+		FullName:     "Test User",
+		PasswordHash: hash,
+		RoleCodes:    []string{"accountant"},
+		Status:       user.StatusActive,
 	}
 	_ = userRepo.Create(context.Background(), u)
 
 	svc := NewService(userRepo, sessionRepo, auditor, Policy{
-		CookieName:        "session",
-		MaxHours:          24,
-		IdleMinutes:       30,
-		MaxFailures:       5,
-		LockoutMinutes:    15,
-		MinPasswordLen:    8,
-		PasswordExpiryDays: 90,
+		CookieName:           "session",
+		MaxHours:             24,
+		IdleMinutes:          30,
+		MaxFailures:          5,
+		LockoutMinutes:       15,
+		MinPasswordLen:       8,
+		PasswordExpiryDays:   90,
 		PasswordHistoryCount: 5,
 	})
 
@@ -324,23 +324,23 @@ func TestChangePassword_ReusesOldPassword_Rejected(t *testing.T) {
 
 	hash, _ := user.HashPassword("oldPass123")
 	u := &user.User{
-		ID:                 "u_testuser",
-		Username:           "testuser",
-		FullName:           "Test User",
-		PasswordHash:       hash,
-		RoleCodes:          []string{"accountant"},
-		Status:             user.StatusActive,
+		ID:           "u_testuser",
+		Username:     "testuser",
+		FullName:     "Test User",
+		PasswordHash: hash,
+		RoleCodes:    []string{"accountant"},
+		Status:       user.StatusActive,
 	}
 	_ = userRepo.Create(context.Background(), u)
 
 	svc := NewService(userRepo, sessionRepo, auditor, Policy{
-		CookieName:        "session",
-		MaxHours:          24,
-		IdleMinutes:       30,
-		MaxFailures:       5,
-		LockoutMinutes:    15,
-		MinPasswordLen:    8,
-		PasswordExpiryDays: 90,
+		CookieName:           "session",
+		MaxHours:             24,
+		IdleMinutes:          30,
+		MaxFailures:          5,
+		LockoutMinutes:       15,
+		MinPasswordLen:       8,
+		PasswordExpiryDays:   90,
 		PasswordHistoryCount: 5,
 	})
 
@@ -368,23 +368,23 @@ func TestChangePassword_EnforceExpiry(t *testing.T) {
 
 	hash, _ := user.HashPassword("currentPass123")
 	u := &user.User{
-		ID:                 "u_testuser",
-		Username:           "testuser",
-		FullName:           "Test User",
-		PasswordHash:       hash,
-		RoleCodes:          []string{"accountant"},
-		Status:             user.StatusActive,
-		PasswordChangedAt:  time.Now().Add(-100 * 24 * time.Hour), // 100 days ago
+		ID:                "u_testuser",
+		Username:          "testuser",
+		FullName:          "Test User",
+		PasswordHash:      hash,
+		RoleCodes:         []string{"accountant"},
+		Status:            user.StatusActive,
+		PasswordChangedAt: time.Now().Add(-100 * 24 * time.Hour), // 100 days ago
 	}
 	_ = userRepo.Create(context.Background(), u)
 
 	svc := NewService(userRepo, sessionRepo, auditor, Policy{
-		CookieName:        "session",
-		MaxHours:          24,
-		IdleMinutes:       30,
-		MaxFailures:       5,
-		LockoutMinutes:    15,
-		MinPasswordLen:    8,
+		CookieName:         "session",
+		MaxHours:           24,
+		IdleMinutes:        30,
+		MaxFailures:        5,
+		LockoutMinutes:     15,
+		MinPasswordLen:     8,
 		PasswordExpiryDays: 90,
 	})
 
@@ -410,23 +410,23 @@ func TestLogin_ZeroExpiryDate_NoExpiryEnforcement(t *testing.T) {
 
 	hash, _ := user.HashPassword("currentPass123")
 	u := &user.User{
-		ID:                 "u_testuser",
-		Username:           "testuser",
-		FullName:           "Test User",
-		PasswordHash:       hash,
-		RoleCodes:          []string{"accountant"},
-		Status:             user.StatusActive,
-		PasswordChangedAt:  time.Time{}, // zero value - never changed
+		ID:                "u_testuser",
+		Username:          "testuser",
+		FullName:          "Test User",
+		PasswordHash:      hash,
+		RoleCodes:         []string{"accountant"},
+		Status:            user.StatusActive,
+		PasswordChangedAt: time.Time{}, // zero value - never changed
 	}
 	_ = userRepo.Create(context.Background(), u)
 
 	svc := NewService(userRepo, sessionRepo, auditor, Policy{
-		CookieName:        "session",
-		MaxHours:          24,
-		IdleMinutes:       30,
-		MaxFailures:       5,
-		LockoutMinutes:    15,
-		MinPasswordLen:    8,
+		CookieName:         "session",
+		MaxHours:           24,
+		IdleMinutes:        30,
+		MaxFailures:        5,
+		LockoutMinutes:     15,
+		MinPasswordLen:     8,
 		PasswordExpiryDays: 90,
 	})
 

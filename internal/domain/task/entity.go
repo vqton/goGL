@@ -7,14 +7,14 @@ import (
 
 // JobRun is a single execution record of a task.
 type JobRun struct {
-	ID         string    `json:"id"`
-	TaskName   string    `json:"task_name"`
-	Status     string    `json:"status"` // running | success | failed
-	Trigger    string    `json:"trigger"` // manual | scheduled
-	TriggeredBy string   `json:"triggered_by"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at,omitempty"`
-	Error      string    `json:"error,omitempty"`
+	ID          string    `json:"id"`
+	TaskName    string    `json:"task_name"`
+	Status      string    `json:"status"`  // running | success | failed
+	Trigger     string    `json:"trigger"` // manual | scheduled
+	TriggeredBy string    `json:"triggered_by"`
+	StartedAt   time.Time `json:"started_at"`
+	FinishedAt  time.Time `json:"finished_at,omitempty"`
+	Error       string    `json:"error,omitempty"`
 }
 
 // TaskDef describes a registered, runnable task.

@@ -183,9 +183,9 @@ func (h *Handler) RunMonthlyDepreciation(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"period":   req.Period,
-		"count":    len(entries),
-		"entries":  entries,
+		"period":  req.Period,
+		"count":   len(entries),
+		"entries": entries,
 	})
 }
 

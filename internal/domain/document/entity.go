@@ -44,25 +44,25 @@ const (
 )
 
 type Document struct {
-	ID            string        `json:"id"`
-	Code          string        `json:"code"`
-	Name          string        `json:"name"`
-	Type          DocumentType  `json:"type"`
-	Folder        string        `json:"folder,omitempty"`
-	URL           string        `json:"url,omitempty"`
-	Owner         string        `json:"owner"`
-	State         DocumentState `json:"state"`
-	Description   string        `json:"description,omitempty"`
-	Tags          []string      `json:"tags,omitempty"`
-	RefCount      int64         `json:"ref_count,omitempty"`
-	CreatedBy     string        `json:"created_by,omitempty"`
-	CreatedAt     string        `json:"created_at"`
-	UpdatedBy     string        `json:"updated_by,omitempty"`
-	UpdatedAt     string        `json:"updated_at"`
-	ArchivedBy    string        `json:"archived_by,omitempty"`
-	ArchivedAt    string        `json:"archived_at,omitempty"`
-	DeletedBy     string        `json:"deleted_by,omitempty"`
-	DeletedAt     string        `json:"deleted_at,omitempty"`
+	ID          string        `json:"id"`
+	Code        string        `json:"code"`
+	Name        string        `json:"name"`
+	Type        DocumentType  `json:"type"`
+	Folder      string        `json:"folder,omitempty"`
+	URL         string        `json:"url,omitempty"`
+	Owner       string        `json:"owner"`
+	State       DocumentState `json:"state"`
+	Description string        `json:"description,omitempty"`
+	Tags        []string      `json:"tags,omitempty"`
+	RefCount    int64         `json:"ref_count,omitempty"`
+	CreatedBy   string        `json:"created_by,omitempty"`
+	CreatedAt   string        `json:"created_at"`
+	UpdatedBy   string        `json:"updated_by,omitempty"`
+	UpdatedAt   string        `json:"updated_at"`
+	ArchivedBy  string        `json:"archived_by,omitempty"`
+	ArchivedAt  string        `json:"archived_at,omitempty"`
+	DeletedBy   string        `json:"deleted_by,omitempty"`
+	DeletedAt   string        `json:"deleted_at,omitempty"`
 }
 
 func (d *Document) Clone() *Document {

@@ -30,23 +30,23 @@ type BudgetItem struct {
 }
 
 type BudgetPlan struct {
-	ID           string      `json:"id"`
-	Code         string      `json:"code"`
-	Name         string      `json:"name"`
-	Department   string      `json:"department,omitempty"`
-	FiscalYear   int         `json:"fiscal_year"`
-	Period       string      `json:"period"`
+	ID           string       `json:"id"`
+	Code         string       `json:"code"`
+	Name         string       `json:"name"`
+	Department   string       `json:"department,omitempty"`
+	FiscalYear   int          `json:"fiscal_year"`
+	Period       string       `json:"period"`
 	Items        []BudgetItem `json:"items"`
-	State        BudgetState `json:"state"`
-	TotalPlanned int64       `json:"total_planned"`
-	TotalActual  int64       `json:"total_actual"`
-	Notes        string      `json:"notes,omitempty"`
-	CreatedBy    string      `json:"created_by,omitempty"`
-	CreatedAt    string      `json:"created_at"`
-	UpdatedBy    string      `json:"updated_by,omitempty"`
-	UpdatedAt    string      `json:"updated_at"`
-	ApprovedBy   string      `json:"approved_by,omitempty"`
-	ApprovedAt   string      `json:"approved_at,omitempty"`
+	State        BudgetState  `json:"state"`
+	TotalPlanned int64        `json:"total_planned"`
+	TotalActual  int64        `json:"total_actual"`
+	Notes        string       `json:"notes,omitempty"`
+	CreatedBy    string       `json:"created_by,omitempty"`
+	CreatedAt    string       `json:"created_at"`
+	UpdatedBy    string       `json:"updated_by,omitempty"`
+	UpdatedAt    string       `json:"updated_at"`
+	ApprovedBy   string       `json:"approved_by,omitempty"`
+	ApprovedAt   string       `json:"approved_at,omitempty"`
 }
 
 func (p *BudgetPlan) Clone() *BudgetPlan {

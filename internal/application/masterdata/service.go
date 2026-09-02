@@ -218,7 +218,6 @@ func (s *service) validate(ctx context.Context, rec *masterdata.Record) error {
 	return nil
 }
 
-
 func (s *service) checkCycle(ctx context.Context, kind masterdata.Kind, code, group string, depth int) error {
 	if depth > 32 {
 		return masterdata.ErrCycle

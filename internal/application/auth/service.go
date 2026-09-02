@@ -19,14 +19,14 @@ type Auditor interface {
 
 // Policy is the account/session policy derived from configuration.
 type Policy struct {
-	CookieName           string
-	MaxHours             int
-	IdleMinutes          int
-	MaxFailures          int
-	LockoutMinutes       int
-	MinPasswordLen       int
-	PasswordExpiryDays   int // 0 = no expiry
-	PasswordHistoryCount int // 0 = no history check
+	CookieName            string
+	MaxHours              int
+	IdleMinutes           int
+	MaxFailures           int
+	LockoutMinutes        int
+	MinPasswordLen        int
+	PasswordExpiryDays    int // 0 = no expiry
+	PasswordHistoryCount  int // 0 = no history check
 	MaxConcurrentSessions int // 0 = unlimited
 }
 
@@ -263,7 +263,7 @@ func (s *service) ChangePassword(ctx context.Context, actorID, current, newPassw
 	return nil
 }
 
-func (s *service) ts() string  { return s.now().UTC().Format(time.RFC3339) }
+func (s *service) ts() string { return s.now().UTC().Format(time.RFC3339) }
 func (s *service) tsAddHours(h int) string {
 	return s.now().Add(time.Duration(h) * time.Hour).UTC().Format(time.RFC3339)
 }

@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"goGL/internal/application/contract"
-	"goGL/internal/domain/core"
 	domaincontract "goGL/internal/domain/contract"
+	"goGL/internal/domain/core"
 )
 
 type Handler struct {

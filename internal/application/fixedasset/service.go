@@ -32,9 +32,9 @@ type Service interface {
 }
 
 type service struct {
-	repo      fixedasset.Repository
-	deprRepo  fixedasset.DepreciationEntryRepository
-	engine    *DepreciationEngine
+	repo     fixedasset.Repository
+	deprRepo fixedasset.DepreciationEntryRepository
+	engine   *DepreciationEngine
 }
 
 func NewService(repo fixedasset.Repository) Service {

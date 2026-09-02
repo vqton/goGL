@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"goGL/internal/domain/document"
 	"goGL/internal/domain/core"
+	"goGL/internal/domain/document"
 )
 
 type Service interface {

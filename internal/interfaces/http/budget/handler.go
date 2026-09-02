@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"goGL/internal/application/budget"
-	"goGL/internal/domain/core"
 	domainbudget "goGL/internal/domain/budget"
+	"goGL/internal/domain/core"
 )
 
 type Handler struct {

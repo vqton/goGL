@@ -48,12 +48,12 @@ type Service interface {
 }
 
 type service struct {
-	repo      user.Repository
-	policies  PolicyStore
-	auditor   Auditor
-	builtin   map[string]bool
-	now       func() time.Time
-	minPwLen  int
+	repo     user.Repository
+	policies PolicyStore
+	auditor  Auditor
+	builtin  map[string]bool
+	now      func() time.Time
+	minPwLen int
 }
 
 func NewService(repo user.Repository, policies PolicyStore, auditor Auditor, builtinRoles []string, minPasswordLen int) Service {

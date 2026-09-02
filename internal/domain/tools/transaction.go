@@ -13,12 +13,12 @@ var (
 type TransactionType string
 
 const (
-	TxImport     TransactionType = "import"      // Nhập kho
-	TxExport     TransactionType = "export"      // Xuất kho
-	TxTransfer   TransactionType = "transfer"    // Điều chuyển
-	TxReturn     TransactionType = "return"      // Trả lại NCC
-	TxDisposal   TransactionType = "disposal"    // Thanh lý
-	TxAdjustment TransactionType = "adjustment"  // Kiểm kê điều chỉnh
+	TxImport     TransactionType = "import"     // Nhập kho
+	TxExport     TransactionType = "export"     // Xuất kho
+	TxTransfer   TransactionType = "transfer"   // Điều chuyển
+	TxReturn     TransactionType = "return"     // Trả lại NCC
+	TxDisposal   TransactionType = "disposal"   // Thanh lý
+	TxAdjustment TransactionType = "adjustment" // Kiểm kê điều chỉnh
 )
 
 func (t TransactionType) IsValid() bool {

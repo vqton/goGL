@@ -79,7 +79,7 @@ func TestBackupCodeExpiry(t *testing.T) {
 
 func TestMFACanBeEnabled(t *testing.T) {
 	u := &User{
-		ID:       "u_test",
+		ID:         "u_test",
 		MFAEnabled: false,
 	}
 
@@ -91,9 +91,9 @@ func TestMFACanBeEnabled(t *testing.T) {
 
 func TestMFARequiresSecret(t *testing.T) {
 	u := &User{
-		ID:          "u_test",
-		MFAEnabled:  true,
-		MFASecret:   "",
+		ID:         "u_test",
+		MFAEnabled: true,
+		MFASecret:  "",
 	}
 
 	// MFA enabled but no secret is invalid state

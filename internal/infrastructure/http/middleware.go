@@ -55,9 +55,9 @@ func CORSMiddleware(cfg CORSConfig) gin.HandlerFunc {
 			if cfg.AllowCredentials {
 				c.Header("Access-Control-Allow-Credentials", "true")
 			}
-		if cfg.MaxAge > 0 {
-			c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", cfg.MaxAge))
-		}
+			if cfg.MaxAge > 0 {
+				c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", cfg.MaxAge))
+			}
 		}
 
 		if c.Request.Method == "OPTIONS" {

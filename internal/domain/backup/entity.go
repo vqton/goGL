@@ -36,7 +36,7 @@ type RestorePlan struct {
 	ID         string    `json:"id"`
 	ArtifactID string    `json:"artifact_id"`
 	StagedPath string    `json:"staged_path"`
-	Status     string    `json:"status"` // staged | approved
+	Status     string    `json:"status"`    // staged | approved
 	Integrity  string    `json:"integrity"` // ok | <error>
 	RowCount   int       `json:"row_count"`
 	CreatedAt  time.Time `json:"created_at"`

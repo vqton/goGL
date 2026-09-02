@@ -99,9 +99,9 @@ func TestValidateDepartment_TypeInvalid(t *testing.T) {
 
 func TestValidateDepartment_CostCenterFormat(t *testing.T) {
 	tests := []struct {
-		name      string
+		name       string
 		costCenter string
-		wantErr   bool
+		wantErr    bool
 	}{
 		{"valid cost center", "CC-001", false},
 		{"empty cost center", "", false},

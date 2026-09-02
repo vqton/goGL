@@ -32,10 +32,10 @@ const (
 type ApprovalStatus string
 
 const (
-	ApprovalNone         ApprovalStatus = ""
-	ApprovalPending      ApprovalStatus = "pending"
-	ApprovalApproved     ApprovalStatus = "approved"
-	ApprovalRejected     ApprovalStatus = "rejected"
+	ApprovalNone     ApprovalStatus = ""
+	ApprovalPending  ApprovalStatus = "pending"
+	ApprovalApproved ApprovalStatus = "approved"
+	ApprovalRejected ApprovalStatus = "rejected"
 )
 
 // DepreciationMethod - only 3 methods per Circular 45/2013/TT-BTC.

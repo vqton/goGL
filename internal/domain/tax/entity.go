@@ -17,12 +17,12 @@ var (
 type TaxType string
 
 const (
-	TaxTypeVAT           TaxType = "vat"
-	TaxTypeCIT           TaxType = "cit"
+	TaxTypeVAT            TaxType = "vat"
+	TaxTypeCIT            TaxType = "cit"
 	TaxTypePersonalIncome TaxType = "pit"
-	TaxTypeImportDuty    TaxType = "import_duty"
-	TaxTypeExcise        TaxType = "excise"
-	TaxTypeOther         TaxType = "other"
+	TaxTypeImportDuty     TaxType = "import_duty"
+	TaxTypeExcise         TaxType = "excise"
+	TaxTypeOther          TaxType = "other"
 )
 
 type DeclarationState string
@@ -36,30 +36,30 @@ const (
 
 type LineItem struct {
 	Description string `json:"description"`
-	TaxRate     int64  `json:"tax_rate"`   // basis points (100 = 1%)
+	TaxRate     int64  `json:"tax_rate"` // basis points (100 = 1%)
 	Taxable     int64  `json:"taxable"`
 	TaxAmount   int64  `json:"tax_amount"`
 	Notes       string `json:"notes,omitempty"`
 }
 
 type TaxDeclaration struct {
-	ID          string            `json:"id"`
-	Code        string            `json:"code"`
-	TaxType     TaxType           `json:"tax_type"`
-	Period      string            `json:"period"` // e.g. "2026-Q1" or "2026-01"
-	CompanyID   string            `json:"company_id,omitempty"`
+	ID           string           `json:"id"`
+	Code         string           `json:"code"`
+	TaxType      TaxType          `json:"tax_type"`
+	Period       string           `json:"period"` // e.g. "2026-Q1" or "2026-01"
+	CompanyID    string           `json:"company_id,omitempty"`
 	TotalTaxable int64            `json:"total_taxable"`
-	TotalTax    int64            `json:"total_tax"`
-	RefNo       string            `json:"ref_no,omitempty"`
-	State       DeclarationState  `json:"state"`
-	Items       []LineItem        `json:"items"`
-	Notes       string            `json:"notes,omitempty"`
-	CreatedBy   string            `json:"created_by,omitempty"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedBy   string            `json:"updated_by,omitempty"`
-	UpdatedAt   string            `json:"updated_at"`
-	FiledBy     string            `json:"filed_by,omitempty"`
-	FiledAt     string            `json:"filed_at,omitempty"`
+	TotalTax     int64            `json:"total_tax"`
+	RefNo        string           `json:"ref_no,omitempty"`
+	State        DeclarationState `json:"state"`
+	Items        []LineItem       `json:"items"`
+	Notes        string           `json:"notes,omitempty"`
+	CreatedBy    string           `json:"created_by,omitempty"`
+	CreatedAt    string           `json:"created_at"`
+	UpdatedBy    string           `json:"updated_by,omitempty"`
+	UpdatedAt    string           `json:"updated_at"`
+	FiledBy      string           `json:"filed_by,omitempty"`
+	FiledAt      string           `json:"filed_at,omitempty"`
 }
 
 func (d *TaxDeclaration) Clone() *TaxDeclaration {

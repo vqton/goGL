@@ -152,9 +152,9 @@ func (h *Handler) importTool(c *gin.Context) {
 
 func (h *Handler) exportTool(c *gin.Context) {
 	var input struct {
-		Quantity    int    `json:"quantity"`
+		Quantity     int    `json:"quantity"`
 		ToDepartment string `json:"to_department"`
-		ToPerson    string `json:"to_person"`
+		ToPerson     string `json:"to_person"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json body"})

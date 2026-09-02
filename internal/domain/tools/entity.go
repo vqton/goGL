@@ -36,7 +36,7 @@ type ToolCard struct {
 	// Financial (VND) - must be < 30M VND per Thông tư 99/2025/TT-BTC
 	OriginalCost int64  `json:"original_cost"`
 	Quantity     int    `json:"quantity"` // Default 1
-	Unit         string `json:"unit"`    // pcs, set, pair, etc.
+	Unit         string `json:"unit"`     // pcs, set, pair, etc.
 
 	// Source documents
 	PurchaseDate string `json:"purchase_date"`

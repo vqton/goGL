@@ -17,43 +17,43 @@ var (
 type TransactionType string
 
 const (
-	TxTypeDeposit   TransactionType = "deposit"
+	TxTypeDeposit    TransactionType = "deposit"
 	TxTypeWithdrawal TransactionType = "withdrawal"
-	TxTypeTransfer  TransactionType = "transfer"
-	TxTypeFee       TransactionType = "fee"
-	TxTypeInterest  TransactionType = "interest"
-	TxTypeOther     TransactionType = "other"
+	TxTypeTransfer   TransactionType = "transfer"
+	TxTypeFee        TransactionType = "fee"
+	TxTypeInterest   TransactionType = "interest"
+	TxTypeOther      TransactionType = "other"
 )
 
 type TransactionState string
 
 const (
-	StatePending   TransactionState = "pending"
-	StateCleared   TransactionState = "cleared"
+	StatePending    TransactionState = "pending"
+	StateCleared    TransactionState = "cleared"
 	StateReconciled TransactionState = "reconciled"
-	StateCancelled TransactionState = "cancelled"
+	StateCancelled  TransactionState = "cancelled"
 )
 
 type BankTransaction struct {
-	ID            string          `json:"id"`
-	Code          string          `json:"code"`
-	AccountNo     string          `json:"account_no"`
-	BankCode      string          `json:"bank_code"`
-	BankName      string          `json:"bank_name,omitempty"`
-	RefDate       string          `json:"ref_date"`
-	ValueDate     string          `json:"value_date,omitempty"`
-	Amount        int64           `json:"amount"`
-	Currency      string          `json:"currency,omitempty"`
-	Type          TransactionType `json:"type"`
-	State         TransactionState `json:"state"`
-	Description   string          `json:"description,omitempty"`
-	Counterparty  string          `json:"counterparty,omitempty"`
-	Reference     string          `json:"reference,omitempty"`
-	Notes         string          `json:"notes,omitempty"`
-	CreatedBy     string          `json:"created_by,omitempty"`
-	CreatedAt     string          `json:"created_at"`
-	UpdatedBy     string          `json:"updated_by,omitempty"`
-	UpdatedAt     string          `json:"updated_at"`
+	ID           string           `json:"id"`
+	Code         string           `json:"code"`
+	AccountNo    string           `json:"account_no"`
+	BankCode     string           `json:"bank_code"`
+	BankName     string           `json:"bank_name,omitempty"`
+	RefDate      string           `json:"ref_date"`
+	ValueDate    string           `json:"value_date,omitempty"`
+	Amount       int64            `json:"amount"`
+	Currency     string           `json:"currency,omitempty"`
+	Type         TransactionType  `json:"type"`
+	State        TransactionState `json:"state"`
+	Description  string           `json:"description,omitempty"`
+	Counterparty string           `json:"counterparty,omitempty"`
+	Reference    string           `json:"reference,omitempty"`
+	Notes        string           `json:"notes,omitempty"`
+	CreatedBy    string           `json:"created_by,omitempty"`
+	CreatedAt    string           `json:"created_at"`
+	UpdatedBy    string           `json:"updated_by,omitempty"`
+	UpdatedAt    string           `json:"updated_at"`
 }
 
 func (t *BankTransaction) Clone() *BankTransaction {

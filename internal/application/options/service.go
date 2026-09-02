@@ -32,9 +32,9 @@ type Service interface {
 }
 
 type service struct {
-	repo   options.Repository
-	audit  Auditor
-	now    func() time.Time
+	repo  options.Repository
+	audit Auditor
+	now   func() time.Time
 }
 
 func NewService(repo options.Repository, auditor Auditor) Service {

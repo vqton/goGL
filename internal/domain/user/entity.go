@@ -38,22 +38,22 @@ type PolicyRule struct {
 // PasswordChangedAt tracks when the password was last changed for expiry enforcement.
 // MFAEnabled/MFASecret/BackupCodes support multi-factor authentication.
 type User struct {
-	ID                 string    `json:"id"`
-	Username           string    `json:"username"`
-	FullName           string    `json:"full_name"`
-	PasswordHash       string    `json:"-"`
-	RoleCodes          []string  `json:"role_codes"`
-	Status             Status    `json:"status"`
-	FailedAttempts     int       `json:"-"`
-	LockedUntil        time.Time `json:"-"`
-	MustChangePassword bool      `json:"must_change_password"`
-	PasswordChangedAt  time.Time `json:"password_changed_at"`
-	MFAEnabled         bool      `json:"mfa_enabled"`
-	MFASecret          string    `json:"-"`
+	ID                 string       `json:"id"`
+	Username           string       `json:"username"`
+	FullName           string       `json:"full_name"`
+	PasswordHash       string       `json:"-"`
+	RoleCodes          []string     `json:"role_codes"`
+	Status             Status       `json:"status"`
+	FailedAttempts     int          `json:"-"`
+	LockedUntil        time.Time    `json:"-"`
+	MustChangePassword bool         `json:"must_change_password"`
+	PasswordChangedAt  time.Time    `json:"password_changed_at"`
+	MFAEnabled         bool         `json:"mfa_enabled"`
+	MFASecret          string       `json:"-"`
 	BackupCodes        []BackupCode `json:"-"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
-	CreatedBy          string    `json:"created_by"`
+	CreatedAt          time.Time    `json:"created_at"`
+	UpdatedAt          time.Time    `json:"updated_at"`
+	CreatedBy          string       `json:"created_by"`
 }
 
 func (u *User) IsSuspended() bool { return u.Status == StatusSuspended }

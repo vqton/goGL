@@ -63,8 +63,8 @@ func (h *Handler) login(c *gin.Context) {
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"session": gin.H{
-			"id":        ses.ID,
-			"username":  ses.Username,
+			"id":         ses.ID,
+			"username":   ses.Username,
 			"expires_at": ses.ExpiresAt,
 		},
 	})

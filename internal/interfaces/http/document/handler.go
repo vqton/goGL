@@ -50,8 +50,8 @@ func respondError(c *gin.Context, err error) {
 		var ve *core.ValidationError
 		if errors.As(err, &ve) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{
-				"error":   ve.Message,
-				"field":   ve.Field,
+				"error": ve.Message,
+				"field": ve.Field,
 			})
 			return
 		}
