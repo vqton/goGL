@@ -1,6 +1,7 @@
 node_modules/
 web/static/css/app.css
 gogl.db
+server
 
 # Playwright
 test-results/
